@@ -1,3 +1,10 @@
+# private data directories that should not be in source control
+data/sample/output/
+data/input/
+data/output/
+data/transform_files/
+transform_functions/private/
+
 # vscode config
 .vscode/
 
