@@ -1,0 +1,2 @@
+This is where you place your own output files that are not supposed to be committed to the git repository.
+This directory is excluded from the git repo.

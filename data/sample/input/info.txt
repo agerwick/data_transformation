@@ -1,0 +1,2 @@
+Sample data for testing. This directory is in the git repo.
+Place your own data in data/input/ instead.

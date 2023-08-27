@@ -1,0 +1,2 @@
+This is where you place your own test files that are not supposed to be committed to the git repository.
+The directory is excluded in .gitignore .

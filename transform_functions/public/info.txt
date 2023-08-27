@@ -1,0 +1,5 @@
+This diretory contains public transform functions that are already in the git repository.
+
+If you have a transform_function that could be useful for other people and you wish to share, you can add it to here and create a pull request on github:
+https://github.com/agerwick/data_transformation
+Some sample data would also be useful for testing your new transform function and show how it works. This can be placed in data/sample .

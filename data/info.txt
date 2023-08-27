@@ -1,0 +1,6 @@
+This is where you place your data.
+sample/     -- in the git repository (sample data included in the repository)
+test/       -- excluded from the git repository - you can place your test files here (or wherever you want outside of the repo, obviously)
+input/      -- excluded from the git repository - you can place your input files here (or wherever you want outside of the repo, obviously)
+output/     -- excluded from the git repository - you can place your output files here (or wherever you want outside of the repo, obviously)
+transform/  -- excluded from the git repository - you can place your transform files (in json format) here.

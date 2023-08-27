@@ -1,0 +1,2 @@
+This directory is used for output from the samples.
+Files here will not be committed to the git repo.

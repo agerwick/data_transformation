@@ -1,0 +1,38 @@
+{
+    "import": [
+        {
+            "module": "transform_functions.public.name",
+            "functions": ["split_name"]
+        },
+        {
+            "module": "transform_functions.public.address_norway",
+            "functions": ["split_address"]
+        }
+    ],
+    "transformations": [
+        {
+            "input": ["name"],
+            "function": "split_name",
+            "output": ["first_name", "last_name"]
+        },
+        {
+            "input": ["address"],
+            "function": "split_address",
+            "output": ["address_street", "address_house_number", "address_suffix", "postal_code", "city"]
+        }
+    ],
+    "output_files": [
+        {
+            "filename": "data/sample/output/names_and_addresses_split.csv",
+            "fields": ["name", "first_name", "last_name", "address", "address_street", "address_house_number", "address_suffix", "postal_code", "city"]
+        },
+        {
+            "filename": "data/sample/output/name_only.csv",
+            "fields": ["first_name", "last_name"]
+        },
+        {
+            "filename": "data/sample/output/address_only.csv",
+            "fields": ["address", "address_street", "address_house_number", "address_suffix", "postal_code", "city"]
+        }
+    ]
+}

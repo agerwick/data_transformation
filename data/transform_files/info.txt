@@ -1,0 +1,2 @@
+This is where you can place your transform files (in json format).
+This directory is excluded from the git repo.
