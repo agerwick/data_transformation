@@ -5,76 +5,120 @@ import importlib
 import sys
 from tabulate import tabulate
 
+def get_filenames(args, transform_file, xput, fail_if_not_defined_in_transform_file=True):
+    # get in/output file names from either command line arguments or from the transform file (the nodes under output)
+    filenames = []
+    filenames_for_error_message = []
+    filename_help = ''
+    raise_exception = False
+    try:
+        transform_file[f'{xput}_files']
+    except KeyError:
+        transform_file[f'{xput}_files'] = []
+        if fail_if_not_defined_in_transform_file:
+            filename_help += \
+            f"No nodes defined in the {xput}_files section of the transformation file.\n"\
+            f"This section should contain a node for each {xput} file.\n"
+            raise_exception = True
+    
+    # make sure that the number of filenames defined in the transform file matches or exceeds the number of filenames given on the command line
+    if getattr(args, xput, False):
+        number_of_files_from_args = len(getattr(args, xput).split(','))
+        number_of_files_from_transform_file = len(transform_file[f'{xput}_files'])
+        if number_of_files_from_transform_file < number_of_files_from_args:
+            if fail_if_not_defined_in_transform_file:
+                filename_help += \
+                f"Number of {xput} files defined in the transform file ({number_of_files_from_transform_file}) is less than the number of {xput} files defined on the command line ({number_of_files_from_args}).\n"
+                raise_exception = True
+            else:
+                # add empty nodes to the transform file to match the number of filenames given on the command line
+                for i in range(number_of_files_from_args - number_of_files_from_transform_file):
+                    transform_file[f'{xput}_files'].append({})
+
+    for index, xput_node in enumerate(transform_file[f'{xput}_files'], start=0):
+        try:
+            filename_from_transform_file = xput_node['filename']
+        except KeyError:
+            filename_from_transform_file = None
+        
+        try:
+            filename_from_command_line = getattr(args, xput, False).split(',')[index]
+            if filename_from_command_line == '_':
+                # replace placeholder with None - filename from transform file will be used instead
+                filename_from_command_line = None
+        except Exception:
+            # IndexError     - no filename for this index given on command line
+            # AttributeError - in/output_files not defined in args
+            if index == 0 and getattr(args, xput, False): # 1st argument and one arg is given
+                filename_from_command_line = getattr(args, xput)
+            else:
+                filename_from_command_line = None
+        
+        # assemble list of file names for error message
+        filenames_for_error_message.append([index + 1, filename_from_command_line, filename_from_transform_file])
+        
+        if filename_from_transform_file or filename_from_command_line:
+            filenames.append(filename_from_command_line or filename_from_transform_file)
+        else:
+            filename_help += f"File name not defined for {xput} #{index + 1}.\n"
+            raise_exception = True
+
+    filename_help += \
+    f"\nThe {xput} filename(s) can be defined as a command line argument --{xput} (comma separated list if more than one) or in {xput}_files section in the transformation file '{args.transform}' (as a filename attribute under each {xput} node).\n" + \
+    f"File names specified on the command line takes precedence over file names defined in the transformation file.\n" + \
+    f"A single underscore can be used as a placeholder for a filename on the command line if the filename is defined in the transformation file and you don't want to override it with a command line argument.\n\n" + \
+    f"The following {xput} files were specified:\n"
+
+    tabulate(filenames_for_error_message, headers=["#", "Command line argument", "Transform file"], tablefmt="psql", showindex=False)
+
+    if raise_exception:
+        raise Exception(filename_help)
+
+    if not filenames:
+        raise Exception(f"No {xput} file names defined.\n{filename_help}")
+    
+    if not args.quiet:
+        for index, filename_from_command_line, filename_from_transform_file in filenames_for_error_message:
+            if filename_from_command_line:
+                print(f"{xput.capitalize()} file #{index}: {filename_from_command_line} (from command line)")
+            elif filename_from_transform_file:
+                print(f"{xput.capitalize()} file #{index}: {filename_from_transform_file} (from transform file)")
+
+    return filenames
+
+
+def get_node_attributes(transform_file, node_name, attribute_name, default=None):
+    try:
+        nodes = transform_file[node_name]
+    except KeyError:
+        nodes = []
+    
+    attributes = []
+    for node in nodes:
+        try:
+            attribute = node[attribute_name]
+        except KeyError:
+            attribute = default
+        attributes.append(attribute)
+    return attributes
+
 def main():
     parser = argparse.ArgumentParser(description='Data Transformation')
     parser.add_argument('--input', help='Input CSV file(s), if not defined in transform file', required=False)
     parser.add_argument('--output', help='Output CSV file(s), if not defined in transform file', required=False)
-    parser.add_argument('--transform', help='Transformation file in JSON format', required=True)
+    parser.add_argument('--transform', help='Transform file in JSON format', required=True)
     parser.add_argument('--quiet', '-q', help='Suppress output', action='store_true')
     args = parser.parse_args()
 
-    with open(args.transform, 'r') as transform_file:
-        transformation_file = json.load(transform_file)
+    with open(args.transform, 'r') as transform_file_wrapper:
+        transform_file = json.load(transform_file_wrapper)
 
-    # define generic help text for input and output filename issues
-    generic_filename_help = \
-    f"\nThe Xput filename(s) can be defined as a command line argument --Xput (comma separated list if more than one) or in Xput_files section in the transformation file '{args.transform}' (as a filename attribute under each Xput node).\n" + \
-    f"File names specified on the command line takes precedence over file names defined in the transformation file.\n" + \
-    f"A single underscore can be used as a placeholder for a filename on the command line if the filename is defined in the transformation file and you don't want to override it with a command line argument.\n\n" + \
-    f"The following Xput files were specified:\n"
-
-    # get output file names from either command line arguments or from the transform file (the nodes under output)
-    output_filenames = []
-    output_filenames_for_error_message = []
-    output_filename_help = ''
-    raise_exception = False
-    try:
-        transformation_file['output_files']
-    except KeyError:
-        transformation_file['output_files'] = []
-        output_filename_help += \
-        "No nodes defined in the output_files section of the transformation file.\n"\
-        "This section should contain a node for each output file.\n"
-        raise_exception = True
-    
-    for index, output in enumerate(transformation_file['output_files'], start=0):
-        try:
-            output_filename_from_transform_file = output['filename']
-        except KeyError:
-            output_filename_from_transform_file = None
-        
-        try:
-            output_filename_from_command_line = args.output.split(',')[index]
-            if output_filename_from_command_line == '_':
-                # replace placeholder with None - filename from transform file will be used instead
-                output_filename_from_command_line = None
-        except IndexError:
-            if index == 0 and args.output: # 1st argument and one arg is given
-                output_filename_from_command_line = args.output
-            else:
-                output_filename_from_command_line = None
-        
-        # assemple list of output file names for error message
-        output_filenames_for_error_message.append([index + 1, output_filename_from_transform_file, output_filename_from_command_line])
-        
-        if output_filename_from_transform_file or output_filename_from_command_line:
-            output_filenames.append(output_filename_from_command_line or output_filename_from_transform_file)
-        else:
-            output_filename_help += f"Output file name not defined for output #{index + 1}.\n"
-            raise_exception = True
-
-    output_filename_help += generic_filename_help.replace('Xput', "output")
-    tabulate(output_filenames_for_error_message, headers=["#", "Command line argument", "Transformation file"], tablefmt="psql", showindex=False)
-
-    if raise_exception:
-        raise Exception(output_filename_help)
-
-    if not output_filenames:
-        raise Exception("No output file names defined.\n{output_filename_help}")
+    # get input file names
+    input_filenames = get_filenames(args, transform_file, 'input', fail_if_not_defined_in_transform_file=False)
 
     # import modules needed for transformations
     try:
-        modules_and_functions = transformation_file['import']
+        modules_and_functions = transform_file['import']
     except KeyError:
         modules_and_functions = []
     
@@ -95,13 +139,38 @@ def main():
             print(f"(the path starts in the same directory as transform.py)")
             sys.exit(1)
 
+    # get prefixes for input file fields (if any)
+    field_prefixes = get_node_attributes(transform_file, 'input_files', 'field_prefix', default=None)
+    field_suffixes = get_node_attributes(transform_file, 'input_files', 'field_suffix', default=None)
+    rename_fields = get_node_attributes(transform_file, 'input_files', 'rename_fields', default=None)
+
     # read input
-    input_data = pd.read_csv(args.input)
+    input_fields_per_file = []
+    input_data = pd.DataFrame()
+    for index, input_filename in enumerate(input_filenames, start=0):
+        tmp_data = pd.read_csv(input_filename)
+        # add prefix to field names if defined in transform file
+        if field_prefixes[index]:
+            tmp_data = tmp_data.add_prefix(field_prefixes[index]+'_')
+        if field_suffixes[index]:
+            tmp_data = tmp_data.add_suffix('_'+field_suffixes[index])
+        if rename_fields[index]:
+            tmp_data = tmp_data.rename(columns=rename_fields[index])
+        input_data = input_data.combine_first(tmp_data)
+        input_fields_per_file.append(list(tmp_data.columns))
+
+    # print field names of input data
+    if not args.quiet:
+        for index, input_fields in enumerate(input_fields_per_file, start=1):
+            print(f"Input fields from file #{index}: {', '.join(input_fields)}")
+        if len(input_fields_per_file) > 1:
+            print(f"All input fields: {', '.join(input_data.columns)}")
+        print()
 
     # transform data
     output_data = pd.DataFrame()
     try:
-        transformations = transformation_file['transformations']
+        transformations = transform_file['transformations']
     except KeyError:
         transformations = []
 
@@ -135,7 +204,16 @@ def main():
     if output_data.empty:
         # if no transformations are specified, this script could still be used to extract data from a CSV file and write it to another CSV file
         output_data = input_data
+        if not args.quiet:
+            print("No transformations specified in transform file. Output data is the same as input data.")
+            print()
     else:
+        # print field names of output data
+        if not args.quiet:
+            print("Output fields produced by transform functions:")
+            print(", ".join(output_data.columns))
+            print()
+
         # Add index column to both DataFrames
         input_data['__index__'] = input_data.index
         output_data['__index__'] = output_data.index
@@ -146,12 +224,15 @@ def main():
         # drop the index column
         output_data = output_data.drop(columns=['__index__'])
 
+    # get ouput file names
+    output_filenames = get_filenames(args, transform_file, 'output', fail_if_not_defined_in_transform_file=True)
+
     # write output file(s)
-    for index, output in enumerate(transformation_file['output_files'], start=0):
+    for index, output in enumerate(transform_file['output_files'], start=0):
         output_fields = output['fields']
         output_filename = output_filenames[index]
         if not args.quiet:
-            print(f"Writing output to '{output_filename}' {output_fields}")
+            print(f"Writing to output file #{index + 1} {output_fields}")
         output_data.to_csv(output_filename, columns=output_fields, index=False)
 
 if __name__ == "__main__":
