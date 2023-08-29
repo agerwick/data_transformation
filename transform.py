@@ -6,6 +6,64 @@ import sys
 from tabulate import tabulate
 
 def get_filenames(args, transform_file, xput, fail_if_not_defined_in_transform_file=True):
+    """
+    Get List of Input/Output File Names from Command Line or Transform File.
+
+    This function retrieves a list of input or output file names based on the specified
+    command line argument or from the corresponding section in the transform file.
+    The function ensures that the number of filenames defined in the transform file matches
+    or exceeds the number of filenames given on the command line. If not, it adds empty nodes
+    to the transform file to match the number of filenames provided on the command line.
+
+    Args:
+        args (Namespace): The parsed command line arguments from argparse.
+        transform_file (dict): The loaded transform configuration from the JSON file.
+        xput (str): The type of file (e.g., 'input' or 'output').
+        fail_if_not_defined_in_transform_file (bool, optional): Determines whether to raise an
+          exception if the specified node is not defined in the transform file.
+          Defaults to True. For output files, this should be set to True, otherwise we won't
+          know what fields to write in the output file.
+
+        Note: The command line argument for input files can be a comma separated list of file names or just a single name if there is only one input file. Command line arguments are optional if the file names are defined in the transform file. If the command line argument is defines, it takes precedence over the transform file. If the placeholder '_' is used as a filename on the command line, the filename from the transform file will be used instead.
+
+    Returns:
+        list: A list of input/output file names.
+
+    Raises:
+        Exception: If there are missing or mismatched filenames based on the provided arguments
+                   and the transform file.
+
+    Example:
+        transform_file:
+            "input_files": [
+                {"filename": "input_file_1.csv"},
+                {"filename": "input_file_2.csv"}
+            ]
+
+        args:
+            input: input_file_3.csv,input_file_4.csv
+
+        Code:
+            from transform import get_filenames
+            from argparse import Namespace
+            transform_file = {
+                "input_files": [
+                    {"filename": "input_file_1.csv"},
+                    {"filename": "input_file_2.csv"}
+                ]
+            }
+            args = Namespace(input="_,input_file_4.csv", transform="transform_file.json", quiet=False)
+            filenames = get_filenames(args, transform_file, "input")
+            filenames
+
+        Prints:
+            Input file #1: input_file_1.csv (from transform file)
+            Input file #2: input_file_4.csv (from command line)
+        (unless --quiet is set on the command line)
+
+        Returns:
+            ['input_file_1.csv', 'input_file_4.csv']
+    """
     # get in/output file names from either command line arguments or from the transform file (the nodes under output)
     filenames = []
     filenames_for_error_message = []
@@ -77,7 +135,7 @@ def get_filenames(args, transform_file, xput, fail_if_not_defined_in_transform_f
     if not filenames:
         raise Exception(f"No {xput} file names defined.\n{filename_help}")
     
-    if not args.quiet:
+    if not getattr(args, "quiet", False): # unless args.quiet
         for index, filename_from_command_line, filename_from_transform_file in filenames_for_error_message:
             if filename_from_command_line:
                 print(f"{xput.capitalize()} file #{index}: {filename_from_command_line} (from command line)")
@@ -88,6 +146,47 @@ def get_filenames(args, transform_file, xput, fail_if_not_defined_in_transform_f
 
 
 def get_node_attributes(transform_file, node_name, attribute_name, default=None):
+    """
+    Get List of Node Attributes from Transform File.
+
+    This function retrieves a list of specified attributes associated with a particular
+    node type from the loaded transform configuration. If the specified attribute is not
+    found for a particular node, the default value is used. It provides a convenient way
+    to extract attributes from nodes in the transform file.
+
+    Args:
+        transform_file (dict): The loaded transform configuration from the JSON file.
+        node_name (str): The name of the node type from which to extract attributes.
+        attribute_name (str): The name of the attribute to extract from each node.
+        default (Any, optional): The default value to use if the specified attribute is
+                                 not found in a node. Defaults to None.
+
+    Returns:
+        list: A list of attributes associated with the specified node type.
+
+    Example:
+        transform_file:
+            "transformations": [
+                {"input": ["name"], "function": "split_name", "output": ["first_name", "last_name"]},
+                {"input": ["address"], "function": "split_address", "output": ["address_street", "address_house_number", "address_suffix", "postal_code", "city"]}
+            ]
+
+        Code:
+            from transform import get_node_attributes
+            transform_file = {
+                "transformations": [
+                    {"input": ["name"], "function": "split_name", "output": ["first_name", "last_name"]},
+                    {"input": ["address"], "function": "split_address", "output": ["address_street", "address_house_number", "address_suffix", "postal_code", "city"]}
+                ]
+            }
+            node_name = "transformations"
+            attribute_name = "function"
+            attributes = get_node_attributes(transform_file, node_name, attribute_name)
+            attributes
+
+        Returns:
+            ['split_name', 'split_address']
+    """
     try:
         nodes = transform_file[node_name]
     except KeyError:

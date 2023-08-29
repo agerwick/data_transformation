@@ -2,6 +2,66 @@ import re
 import pandas as pd
 
 def split_address(input_data, input_fields, output_fields):
+    """
+    Split Address into Street, House Number, Suffix, Postal Code, and City Columns.
+
+    This function takes input data with full address information and splits them into
+    separate columns for street name, house number, suffix, postal code, and city.
+    The function is specifically designed for Norwegian addresses, but may work for
+    other European addresses as well. It will not work for addresses in the US, as
+    the US has a different address format.
+    The input and output field names are specified to match the field names of the input
+    and output DataFrame.
+
+    Args:
+        input_data (pd.DataFrame): The input DataFrame containing the address data to be split.
+        input_fields (list): A list containing the name of the input field to be split.
+        output_fields (list): A list containing the names of the output fields for 
+                             street name, house number, suffix, postal code, and city.
+
+    Returns:
+        pd.DataFrame: A DataFrame with separate columns for street name, house number,
+                      suffix, postal code, and city.
+
+    Raises:
+        Exception: If the length of input_fields is not exactly 1 or the length of
+                   output_fields is not exactly 5.
+
+    Example:
+        input_data:
+            address
+            Storgata 6 leilighet 3, 0123 Oslo
+            Parkveien 45, Seksjon 1, Inng.A, 1337 Sandvika
+            Nedre Kirkegate 7B, 5005 Bergen
+
+        input_fields:
+            ['address']
+
+        output_fields:
+            ['address_street', 'address_house_number', 'address_suffix', 'postal_code', 'city']
+
+        Code:
+            import pandas as pd
+            import re
+            from transform_functions.public.address_norway import split_address
+            input_data = pd.DataFrame({
+                'address': [
+                    'Storgata 6 leilighet 3, 0123 Oslo',
+                    'Parkveien 45, Seksjon 1, Inng.A, 1337 Sandvika',
+                    'Nedre Kirkegate 7B, 5005 Bergen'
+                ]
+            })
+            input_fields = ['address']
+            output_fields = ['address_street', 'address_house_number', 'address_suffix', 'postal_code', 'city']
+            split_address(input_data, input_fields, output_fields)
+
+        Returns:
+            | address_street       | address_house_number | address_suffix    | postal_code | city     |
+            |----------------------|----------------------|-------------------|-------------|----------|
+            | Storgata             | 6                    | leilighet 3       | 0123        | Oslo     |
+            | Parkveien            | 45                   | Seksjon 1, Inng.A | 1337        | Sandvika |
+            | Nedre Kirkegate      | 7B                   |                   | 5005        | Bergen   |
+    """
     if len(input_fields) != 1:
         raise Exception(f"split_address() requires exactly one input field: address -- however, this was given: {input_fields}")
     if len(output_fields) != 5:
