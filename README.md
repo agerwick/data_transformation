@@ -101,3 +101,97 @@ No transformations specified in transform file. Output data is the same as input
 
 Writing to output file #1 ['customer_id', 'name', 'address']
 ```
+
+# Transform file documentation
+The transform file is a JSON file located in `./data/transform_files/` or wherever you want to place it. Example transform files can be found in `./data/sample/transform_files/`.
+
+## import section
+If you are going to use transform functions, they need to be imported here. 
+
+The **"module"** parameter contains the path to the library. In these two examples, the files containing the functions are located in `./transform_functions/public/` and are called `name.py` and `address_norway.py`.
+
+**"functions"** contain a list of functions declared in these files.
+See the "transformations" sections on how to call these functions.
+
+    "import": [
+        {
+            "module": "transform_functions.public.name",
+            "functions": ["split_name", "combine_name_to_first_last"]
+        },
+        {
+            "module": "transform_functions.public.address_norway",
+            "functions": ["split_address"]
+        }
+    ]
+You can place your own private transform functions in `./transform_functions/private/`, as this directory is *not* committed to source control (git). Here's an example:
+
+    "import": [
+        {
+            "module": "transform_functions.private.my_transform_functions",
+            "functions": ["my_private_transform_function"]
+        }
+    ]
+This will make the transform script look for a declared function named `my_private_transform_function` in `./transform_functions/private/my_transform_functions.py`
+
+## input section
+The entire input section is optional. If you don't need any field renaming and want to specify the filename on the command line.
+
+Each node here represents an input file. All parameters optional, even filename (as this can be specified on the command line, even if you have renaming options specified here).
+
+An empty node is a valid entry, and can be used for example if input file #1 will be specified on the command line, but you need to specify a filename or some parameters for input file #2.
+
+In this example, a filename is specified for input file #2. It will be used unless another one is specified on the command line, and it will fail if input file #1 is not specified on the command line:
+
+    "input_files": [
+        {},
+        {
+            "filename": "data/sample/input/names_and_addresses.csv"
+        }
+    ]
+In this example, if the input file contains a fields called "customer_id" and "name", they will be renamed to "original_customer_id_from_legacy_software" and "original_name_from_legacy_software", respectively.
+
+    "input_files": [
+        {
+            "filename": "data/sample/input/customer_numbers.csv",
+            "field_prefix": "original",
+            "field_suffix": "from_legacy_software"
+        }
+    ]
+In this example, if the input file contains a field name called "customer_id", it will be renamed to "customer_id2". If the field doesn't exist, nothing will happen.
+
+    "input_files": [
+        {
+            "filename": "data/sample/input/customer_numbers2.csv",
+            "rename_fields": {
+                "customer_id": "customer_id2"
+            }
+        }
+    ]
+Note that if both field_prefix/suffix and rename_fields are used on the same input file, rename_fields needs to reference the field names with the added prefix/suffix, as prefixes and suffixes are added first.
+
+## transform section
+In this example, the field "name" from any of the input files will be passed to the transform function called "split_name", which will generate two new fields named "first_name" and "last_name". If any of these field names are already in use (loaded from the input files or generared by previous transformations), they will be overwritten.
+
+The entire section is optional. Transform functions will be executed in the given order, and one transform function can use the output from an earlier one.
+
+The "split_name" function must be declared in one of the modules imported in the import section.
+
+    "transformations": [
+        {
+            "input": ["name"],
+            "function": "split_name",
+            "output": ["first_name", "last_name"]
+        }
+    ]
+
+## output section
+The output sections defines the file names and field names for the output file(s). The output section, as well as at least one node with the "fields" parameter are required. Any number of output files can be defined.
+
+The **"filename"** parameter is optional, but must be provided on the command line if not defined. If defined both places, the file name provided on the command line takes precedence.
+The **"fields"** sections defines which fields are to be written to the output file. Obviously these fields must all exist. They can be a combination of fields copied from the input files and output from the transform functions.
+    "output_files": [
+        {
+            "filename": "data/sample/output/cutomer_id_names_addresses.csv",
+            "fields": ["customer_id", "name", "address"]
+        }
+    ]
