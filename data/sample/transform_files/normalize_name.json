@@ -1,4 +1,9 @@
 {
+    "input_files": [
+        {
+            "filename": "data/sample/input/names_and_addresses.csv"
+        }
+    ],
     "import": [
         {
             "module": "transform_functions.public.name",

@@ -60,6 +60,12 @@ In the transform file's output section, we've specified the fields as `["custome
 $ python transform.py --transform data/sample/transform_files/join_two_files.json
 ```
 
+## Sanitize data (fix name columns containing both "First Last" and "Last, First" entries)
+In order to do this, we can simply split the "name" field in first and last name using a function that supports both formats, then combine them back to "name":
+```
+python transform.py --transform data/sample/transform_files/normalize_name.json
+```
+
 # Transform file documentation
 The transform file is a JSON file located in `./data/transform_files/` or wherever you want to place it. Example transform files can be found in `./data/sample/transform_files/`.
 

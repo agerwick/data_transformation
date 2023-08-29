@@ -261,7 +261,7 @@ def main():
     # print field names of input data
     if not args.quiet:
         for index, input_fields in enumerate(input_fields_per_file, start=1):
-            print(f"Input fields from file #{index}: {', '.join(input_fields)}")
+            print(f"Input fields from file #{index}: {list(input_fields)}")
         if len(input_fields_per_file) > 1:
             print(f"All input fields: {', '.join(input_data.columns)}")
         print()
@@ -273,8 +273,13 @@ def main():
     except KeyError:
         transformations = []
 
+    # add an index column to the input data so that it can be combined with the transformed data
+    input_data['__index__'] = input_data.index
+    # copy input data to output data
+    output_data = input_data # maybe this should be output_data = input_data.copy() ? (to avoid modifying input_data) -- but do we really need the input data again?
+
     # go through each transformation defined in the transform file (json) and apply the result to the output data
-    for transformation in transformations:
+    for index, transformation in enumerate(transformations, start=1):
         # Take input and output fields from transformation file and use them as arguments to the transformation function
         # This makes it possible to define all field names for both input and output files in the transformation file
         input_fields = transformation['input']
@@ -292,36 +297,36 @@ def main():
             raise Exception(function_not_found_exception_message)
 
         # apply transform function to input data to procude output data
-        transformed_data = transform_function(input_data, input_fields, output_fields)
+        transformed_data = transform_function(output_data, input_fields, output_fields)
 
-        # add transformed data to output
-        if output_data.empty:
-            output_data = transformed_data
-        else:
-            output_data = output_data.combine_first(transformed_data)
+        if not args.quiet:
+            print(f"Output fields produced by transform function #{index} ({transformation['function']}): {list(transformed_data.columns)}")
 
-    if output_data.empty:
-        # if no transformations are specified, this script could still be used to extract data from a CSV file and write it to another CSV file
-        output_data = input_data
+        if not transformed_data.empty:
+            # add an index column to the transformed data so that it can be combined with the input and output data
+            transformed_data['__index__'] = transformed_data.index
+
+            # add transformed data to output data
+            # output_data already has an index column, as it was added to input_data in the previous iteration, from which output_data was created
+            # merging output and transformed data will overwrite fields with duplicate names in output (for example, if name from input is split into first_name and last_name in output, then combined after some transformation back into "name", the original input name will be overwritten)
+            output_data = transformed_data.combine_first(output_data)
+
+            # dropping the index column from the transformed data is not necessary, as it will never be used again
+            # transformed_data = transformed_data.drop(columns=['__index__'])
+  
+    # drop the index column from output data
+    output_data = output_data.drop(columns=['__index__'])
+    # dropping the index column from input data is not necessary, as it will never be used again
+    # input_data = input_data.drop(columns=['__index__'])
+
+    if len(transformations) == 0:
+        # if no transformations are specified, this script could still be used to extract data from a CSV file and write it to another CSV file, so just write a helpful note.
         if not args.quiet:
             print("No transformations specified in transform file. Output data is the same as input data.")
             print()
     else:
-        # print field names of output data
         if not args.quiet:
-            print("Output fields produced by transform functions:")
-            print(", ".join(output_data.columns))
             print()
-
-        # Add index column to both DataFrames
-        input_data['__index__'] = input_data.index
-        output_data['__index__'] = output_data.index
-        
-        # merge output and input data, overwriting input fields with duplicate names in output (for example, if name from input is split into first_name and last_name in output, then combines after some transformation back into "name")
-        output_data = output_data.combine_first(input_data)
-        
-        # drop the index column
-        output_data = output_data.drop(columns=['__index__'])
 
     # get ouput file names
     output_filenames = get_filenames(args, transform_file, 'output', fail_if_not_defined_in_transform_file=True)
@@ -347,7 +352,7 @@ def main():
                     print(f"Warning: multiple instances of '*' found in output fields for output file #{index + 1}. Only the first instance will be used.")
         output_filename = output_filenames[index]
         if not args.quiet:
-            print(f"Writing to output file #{index + 1} {output_fields}")
+            print(f"Writing to output file #{index + 1} {list(output_fields)}")
         output_data.to_csv(output_filename, columns=output_fields, index=False)
 
 if __name__ == "__main__":
