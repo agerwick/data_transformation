@@ -329,6 +329,22 @@ def main():
     # write output file(s)
     for index, output in enumerate(transform_file['output_files'], start=0):
         output_fields = output['fields']
+        # if any of the output fields are "*", find all fields not specified in output_fields and add them to the output
+        if '*' in output_fields:
+            # make a list of fields to add to the output
+            fields_to_add = []
+            for field in output_data.columns:
+                if field not in output_fields:
+                    fields_to_add.append(field)
+            # replace '*' with fields_to_add, in the position where '*' was 
+            index_of_asterisk = output_fields.index('*')
+            output_fields = output_fields[:index_of_asterisk] + fields_to_add + output_fields[index_of_asterisk + 1:]
+            # delete any subsequent '*' in the list
+            while '*' in output_fields:
+                index_of_asterisk = output_fields.index('*')
+                output_fields = output_fields[:index_of_asterisk] + output_fields[index_of_asterisk + 1:]
+                if not args.quiet:
+                    print(f"Warning: multiple instances of '*' found in output fields for output file #{index + 1}. Only the first instance will be used.")
         output_filename = output_filenames[index]
         if not args.quiet:
             print(f"Writing to output file #{index + 1} {output_fields}")

@@ -1,0 +1,26 @@
+{
+    "import": [
+        {
+            "module": "transform_functions.public.name",
+            "functions": ["split_name", "combine_name_to_first_last"]
+        }
+    ],
+    "transformations": [
+        {
+            "input": ["name"],
+            "function": "split_name",
+            "output": ["first_name", "last_name"]
+        },
+        {
+            "input": ["first_name", "last_name"],
+            "function": "combine_name_to_first_last",
+            "output": ["name"]
+        }
+    ],
+    "output_files": [
+        {
+            "filename": "data/sample/output/normalized_names_with_addresses.csv",
+            "fields": ["name", "address"]
+        }
+    ]
+}
