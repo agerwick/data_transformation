@@ -153,6 +153,7 @@ The output sections defines the file names and field names for the output file(s
 
 The **"filename"** parameter is optional, but must be provided on the command line if not defined. If defined both places, the file name provided on the command line takes precedence.
 The **"fields"** sections defines which fields are to be written to the output file. Obviously these fields must all exist. They can be a combination of fields copied from the input files and output from the transform functions.
+
     "output_files": [
         {
             "filename": "data/sample/output/cutomer_id_names_addresses.csv",
