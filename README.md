@@ -27,24 +27,13 @@ The transformation file has three sections:
   - **fields** - which fields (from either input files or the transform function) to write to the output file
 
 # Examples
+Execute these examples so see more information about what they do. The output from the script is pretty descriptive.
+
 ## Extract one field from the CSV input file
 This example doesn't do any transformation at all, it simply reads the input file (with name and address) and creates a new output file with only one field (address).
 
 ```
 $ python transform.py --input data/sample/input/names_and_addresses.csv --output data/sample/output/extracted_addresses.csv --transform data/sample/transform_files/extract_address.json
-
-Input file #1: data/sample/input/names_and_addresses.csv (from command line)
-
-Output file #1: data/sample/output/extracted_addresses.csv (from command line)
-
-Input fields from file #1: name, address
-
-All input fields:
-name, address
-
-No transformations specified in transform file. Output data is the same as input data.
-
-Writing to output file #1 ['address']
 ```
 
 ## Split name in first_name and last_name, and split address in street_name, house_number and suffix
@@ -56,19 +45,6 @@ All the output filenames are defined in the transform file, so we don't need a c
 
 ```
 $ python transform.py --input data/sample/input/names_and_addresses.csv --transform data/sample/transform_files/split_name_and_address.json
-
-Input file #1: data/sample/input/names_and_addresses.csv (from command line)
-Input fields from file #1: name, address
-
-Output fields produced by transform functions:
-address_house_number, address_street, address_suffix, city, first_name, last_name, postal_code
-
-Output file #1: data/sample/output/names_and_addresses_split.csv (from transform file)
-Output file #2: data/sample/output/name_only.csv (from transform file)
-Output file #3: data/sample/output/address_only.csv (from transform file)
-Writing to output file #1 ['name', 'first_name', 'last_name', 'address', 'address_street', 'address_house_number', 'address_suffix', 'postal_code', 'city']
-Writing to output file #2 ['first_name', 'last_name']
-Writing to output file #3 ['address', 'address_street', 'address_house_number', 'address_suffix', 'postal_code', 'city']
 ```
 
 ## Merge/join two files
@@ -82,19 +58,6 @@ We also have a second file with a different set of customer numbers, but with th
 In the transform file's output section, we've specified the fields as `["customer_id", "customer_id2", "*"]` to demonstrate the use of asterisk to add _the rest of the fields_ (in alphabetical order).
 ```
 $ python transform.py --transform data/sample/transform_files/join_two_files.json
-
-Input file #1: data/sample/input/names_and_addresses.csv (from transform file)
-Input file #2: data/sample/input/customer_numbers.csv (from transform file)
-Input file #3: data/sample/input/customer_numbers2.csv (from transform file)
-Input fields from file #1: name, address
-Input fields from file #2: customer_id
-Input fields from file #3: customer_id2
-All input fields: address, customer_id, customer_id2, name
-
-No transformations specified in transform file. Output data is the same as input data.
-
-Output file #1: data/sample/output/cutomer_id_names_addresses.csv (from transform file)
-Writing to output file #1 ['customer_id', 'customer_id2', 'address', 'name']
 ```
 
 # Transform file documentation
