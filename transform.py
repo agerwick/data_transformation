@@ -303,7 +303,7 @@ def main():
         if metadata:
             if not args.quiet:
                 print(f"Metadata returned by transform function #{index} ({transformation['function']}): {metadata}")
-            if metadata.get('purge_existing_data'):
+            if metadata.get('clear_input_data'):
                 # delete all existing data in the output table before writing the new data returned from the transform function
                 output_data = pd.DataFrame()
 

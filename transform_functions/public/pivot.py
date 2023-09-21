@@ -60,7 +60,7 @@ def pivot(input_data, input_fields, output_fields):
     """
 
     # get the index, pivot and data column names
-    
+
     index_column = input_fields["index_column"]
     pivot_column = input_fields["pivot_column"]
     data_column  = input_fields["data_column"]
@@ -76,24 +76,6 @@ def pivot(input_data, input_fields, output_fields):
 
     # instruct parent to delete all existing data in the output table before writing the new data returned from this function
     # this is required as the output table is a pivot of the input table, so the output table will have a different number of rows and columns each time this function is run
-    metadata = {"purge_existing_data": True} 
+    metadata = {"clear_input_data": True} 
 
     return df, metadata
-
-#x = 1
-"""
-#df = pd.read_csv('/home/raw/wrk/battery_testing_data/Experimental data/Cell 1/Charging stage_1.csv')
-
-index_column = 'time (s)'
-pivot_column = 'cycle'
-data_column = 'capacity (Ah)'
-
-# pivot the data
-df = df.pivot(index=index_column, columns=pivot_column, values=data_column)
-# rename the columns
-df.columns = [f'{pivot_column} [] {data_column}'.replace("[]", "{}").format(col) for col in df.columns]
-df = df.reset_index() # flattens the header so the index column is a column again
-
-# Write the transformed data to a file
-df.to_csv('/home/raw/wrk/battery_testing_data/Experimental data/Cell 1/Charging stage_1_pivot_on_cycle.csv', index=False)
-"""
