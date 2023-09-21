@@ -137,5 +137,6 @@ def split_address(input_data, input_fields, output_fields):
     output_data[output_fields[2]] = address_suffixes
     output_data[output_fields[3]] = postal_codes
     output_data[output_fields[4]] = cities
-   
-    return output_data
+    metadata = {}
+
+    return output_data, metadata

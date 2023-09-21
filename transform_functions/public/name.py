@@ -71,7 +71,8 @@ def split_name(input_data, input_fields, output_fields):
         last_names.append(last_name.strip())
     output_data[output_fields[0]] = first_names
     output_data[output_fields[1]] = last_names
-    return output_data
+    metadata = {}
+    return output_data, metadata
 
 def combine_name_to_first_last(input_data, input_fields, output_fields):
     """
@@ -133,4 +134,5 @@ def combine_name_to_first_last(input_data, input_fields, output_fields):
         full_name = f"{row[input_fields[0]]} {row[input_fields[1]]}"
         names.append(full_name)
     output_data[output_fields[0]] = names
-    return output_data
+    metadata = {}
+    return output_data, metadata

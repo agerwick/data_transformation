@@ -66,6 +66,12 @@ In order to do this, we can simply split the "name" field in first and last name
 python transform.py --transform data/sample/transform_files/normalize_name.json
 ```
 
+## Pivot table (add one new column for each value in a specified column)
+For testing this, we use publicly available battery testing data. The test has been done in 100 cycles (one sample per second in each cycle), and we want to have the Capacity for each Cycle as one column instead. Try this, look at the input file and compare with the output file:
+```
+python transform.py --transform data/sample/transform_files/pivot_table.json
+```
+
 # Transform file documentation
 The transform file is a JSON file located in `./data/transform_files/` or wherever you want to place it. Example transform files can be found in `./data/sample/transform_files/`.
 
@@ -145,6 +151,20 @@ The "split_name" function must be declared in one of the modules imported in the
             "input": ["name"],
             "function": "split_name",
             "output": ["first_name", "last_name"]
+        }
+    ]
+
+Depending on the transform functions, different input formats can be used. For example, on the pivot transform function (in transform_functions/public/pivot.py), the input is a dictionary instead of a list:
+
+    "transformations": [
+        {
+            "function": "pivot",
+            "input": {
+                "index_column": "time (s)",
+                "pivot_column": "cycle",
+                "data_column": "capacity (Ah)"    
+            },
+            "output": []
         }
     ]
 

@@ -297,10 +297,19 @@ def main():
             raise Exception(function_not_found_exception_message)
 
         # apply transform function to input data to procude output data
-        transformed_data = transform_function(output_data, input_fields, output_fields)
+        transformed_data, metadata = transform_function(output_data, input_fields, output_fields)
+
+        # check for metadata returned by transform function
+        if metadata:
+            if not args.quiet:
+                print(f"Metadata returned by transform function #{index} ({transformation['function']}): {metadata}")
+            if metadata.get('purge_existing_data'):
+                # delete all existing data in the output table before writing the new data returned from the transform function
+                output_data = pd.DataFrame()
 
         if not args.quiet:
             print(f"Output fields produced by transform function #{index} ({transformation['function']}): {list(transformed_data.columns)}")
+            print(f"Number of rows in output data: {len(transformed_data)}")
 
         if not transformed_data.empty:
             # add an index column to the transformed data so that it can be combined with the input and output data
@@ -313,9 +322,10 @@ def main():
 
             # dropping the index column from the transformed data is not necessary, as it will never be used again
             # transformed_data = transformed_data.drop(columns=['__index__'])
-  
+
     # drop the index column from output data
-    output_data = output_data.drop(columns=['__index__'])
+    if '__index__' in output_data.columns:
+        output_data = output_data.drop(columns=['__index__'])
     # dropping the index column from input data is not necessary, as it will never be used again
     # input_data = input_data.drop(columns=['__index__'])
 
