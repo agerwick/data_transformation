@@ -1,0 +1,22 @@
+{
+    "_meta": {
+        "hash": {
+            "sha256": "200fa4cb38607eeea6c4d2cb02ffb54fea69b76e0184913033c8ef0dfb7892af"
+        },
+        "pipfile-spec": 6,
+        "requires": {
+            "odfpy": "*",
+            "pandas": "*",
+            "python_version": "3.8"
+        },
+        "sources": [
+            {
+                "name": "pypi",
+                "url": "https://pypi.org/simple",
+                "verify_ssl": true
+            }
+        ]
+    },
+    "default": {},
+    "develop": {}
+}
