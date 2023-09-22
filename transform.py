@@ -347,8 +347,8 @@ def main():
     for index, transformation in enumerate(transformations, start=1):
         # Take input and output fields from transform file and use them as arguments to the transformation function
         # This makes it possible to define all field names for both input and output files in the transform file
-        input_fields = transformation['input']
-        output_fields = transformation['output']
+        input_fields = transformation.get('input') or []
+        output_fields = transformation.get('output') or []
 
         if transformation['function'] in transform_functions:
             transform_function = transform_functions[transformation['function']]
@@ -410,6 +410,12 @@ def main():
 
     # get ouput file names
     output_filenames = get_filenames(args, transform_file, 'output', fail_if_not_defined_in_transform_file=True)
+
+    # if there's no data in the output, don't write anything
+    if output_data.empty:
+        if not args.quiet:
+            print("No data in output -- nothing will be written to output file(s)")
+        sys.exit(0)
 
     # write output file(s)
     for index, output in enumerate(transform_file['output_files'], start=0):
