@@ -1,7 +1,8 @@
 import re
 import pandas as pd
+from func.shared import check_data_source_and_entry, structure_dataframe
 
-def split_address(input_data, input_fields, output_fields):
+def split_address(input_data, input_section, output_fields):
     """
     Split Address into Street, House Number, Suffix, Postal Code, and City Columns.
 
@@ -62,6 +63,16 @@ def split_address(input_data, input_fields, output_fields):
             | Parkveien            | 45                   | Seksjon 1, Inng.A | 1337        | Sandvika |
             | Nedre Kirkegate      | 7B                   |                   | 5005        | Bergen   |
     """
+
+    input_section = check_data_source_and_entry(input_data, input_section)
+    if not input_section:
+        print("Exiting...")
+        sys.exit(1)
+
+    data_source = input_section['data_source']
+    data_entry = input_section['data_entry']
+    input_fields = input_section['fields']
+
     if len(input_fields) != 1:
         raise Exception(f"split_address() requires exactly one input field: address -- however, this was given: {input_fields}")
     if len(output_fields) != 5:
@@ -72,7 +83,7 @@ def split_address(input_data, input_fields, output_fields):
     address_suffixes = []
     postal_codes = []
     cities = []
-    for index, row in input_data.iterrows():
+    for _, row in input_data.get(data_source).get(data_entry).iterrows():
         address_parts = row[input_fields[0]].split(',')
         
         if len(address_parts) > 1:
@@ -137,6 +148,6 @@ def split_address(input_data, input_fields, output_fields):
     output_data[output_fields[2]] = address_suffixes
     output_data[output_fields[3]] = postal_codes
     output_data[output_fields[4]] = cities
-    metadata = {}
 
-    return output_data, metadata
+    metadata = {} 
+    return structure_dataframe(output_data, input_data), metadata

@@ -1,4 +1,5 @@
 from tabulate import tabulate
+import pandas as pd
 
 def get_filenames(
         files_from_args, 
@@ -215,3 +216,150 @@ def replace_placeholders(user_string, variable_substitutions):
         # Replace the placeholder with the corresponding value
         user_string = user_string.replace(placeholder, str(value))
     return user_string
+
+def print_data_summary(data):
+    # data is a dictionary of dictionaries, key: data_source, value: dict with key:  dataframe with data from that sheet (sheet name is "csv" if the file is a csv file)
+    # example:
+    # {
+    #     "input_1": {
+    #       "csv": <pandas dataframe>
+    #     },
+    #     "input_2": {
+    #       "csv": <pandas dataframe>
+    #     },
+    #     "input_3": {
+    #       "sheet1": <pandas dataframe>, 
+    #       "sheet2": <pandas dataframe>
+    #     }
+    # }
+
+    # loop through all data entries and print the sheet names, column names and number of rows
+    for data_source, data_entry_dict in data.items():
+        for data_entry, dataframe in data_entry_dict.items():
+            # number of columns in dataframe
+            print(f"Data source:'{data_source}', Data entry:'{data_entry}' (cols: {len(dataframe.columns)}, rows: {len(dataframe)})")
+            print(f"  Columns: {list(dataframe.columns)}")
+    print()
+
+def check_data_source_and_entry(data, input_fields, section="transformation"):
+    # data is a dictionary with key: data_source ("input1", ...) and value: another dictionary with key: data_entry (sheet_name from spreadsheet or "csv" for CSV files) and value: a dataframe with data from that sheet or CSV file
+    # example:
+    # {
+    #     "input_1": {
+    #         "sheet1": <pandas dataframe>
+    #         "sheet2": <pandas dataframe>
+    #     }
+    # }
+    # if there's only one file, then the list will only contain one dictionary
+    # if the file is a csv file, then the sheet_name will be "csv".
+    # Here's an example where 2 csv files are loaded:
+    # {
+    #     "input_1": {
+    #         "csv": <pandas dataframe>
+    #     },
+    #     "input_2": {
+    #         "csv": <pandas dataframe>
+    #     }
+    # ]
+    # The order in the numbering of data sources is the same as the order in which the files were specified in the transform file or command line argument.
+
+    # input_fields is either:
+    # - a list of fields to be used by the transform function calling this routine
+    #   (note that this only works if there's only one data source and one data entry in the data)
+    # example: ["first_name", "last_name"]
+    # - a dictionary with these keys:
+    #   - "data_source": the name of the data source (e.g., "input_1")
+    #   - "data_entry": the name of the data entry (e.g., "sheet1" or "csv")
+    #   - "fields": a list of fields to be used by the transform function calling this routine
+    # example: {
+    #     "data_source": "input_1",
+    #     "data_entry": "sheet1",
+    #     "fields": ["first_name", "last_name"]
+    # }
+
+    # if input_fields is a list, convert it to a dictionary
+    if type(input_fields) == list:
+        input_fields = {
+            "data_source": "input_1",
+            "data_entry": "csv",
+            "fields": input_fields
+        }
+    elif type(input_fields) != dict:
+        print(f"ERROR:\nThe {section} section must be a list or a dictionary. It is {type(input_fields)}. Here is a valid example:")
+        print(f"""
+        "{section}": {
+            "data_source": "input_1",
+            "data_entry": "csv",
+            "fields": ["first_name", "last_name"]
+        }
+        """)
+        print("Optionally, if you only have one data source and one data entry, you can use a list instead of a dictionary:")
+        print("""
+        "input": ["first_name", "last_name"]
+        """)
+        return None
+    
+    # get data source and data entry from input_fields, if they exist
+    data_source = input_fields.get("data_source")
+    data_entry = input_fields.get("data_entry")
+
+    # if data_source is not specified, check the data - if there's only one data source, use that. If not, print error and return None
+    if not data_source:
+        if len(data) == 1:
+            data_source = list(data.keys())[0]
+            input_fields["data_source"] = data_source
+            print(f"Data source not specified for {section}, but there's only one data source in the data.")
+            print("Using data source '{data_source}'")
+        else:
+            print(f"ERROR:\nData source not specified for {section} and there's more than one data source in the data.")
+            print(f"Available data sources: {list(data.keys())}")
+            print(f"Specify the data source in the {section} section of the transform file.")
+            return None
+    # if data_source is specified, check if it exists in the data - if not, print error and return None
+    else:
+        if not data_source in data:
+            print(f"ERROR:\nData source '{data_source}' not found in data.")
+            print(f"Available data sources: {list(data.keys())}")
+            return None
+
+    # if data_entry is not specified, check the data - if there's only one data entry, use that. If not, print error and return None
+    if not data_entry:
+        if len(data[data_source]) == 1:
+            data_entry = list(data[data_source].keys())[0]
+            input_fields["data_entry"] = data_entry
+            print(f"Data entry not specified for {section}, but there's only one data entry in data source '{data_source}'.")
+            print(f"Using data entry '{data_entry}'")
+        else:
+            print(f"ERROR:\nData entry not specified for {section} and there's more than one data entry in data source '{data_source}'.")
+            print(f"Available data entries: {list(data[data_source].keys())}")
+            print(f"Specify the data entry in the {section} section of the transform file.")
+            return None
+    # if data_entry is specified, check if it exists in the data - if not, print error and return None
+    else:
+        if not data_entry in data[data_source]:
+            print(f"ERROR:\nData entry '{data_entry}' not found in data source '{data_source}'.")
+            print(f"Available data entries: {list(data[data_source].keys())}")
+            return None
+    
+    return input_fields
+
+
+def structure_dataframe(new_data, existing_data={}, data_source=None, data_entry='data'):
+    # add the structure for the output data to make it compatible with the input data
+    import inspect
+    calling_function = inspect.stack()[1].function # grab name of the calling function
+
+    # if the data is not a dataframe, raise an exception as this is a developer error
+    if type(new_data) != pd.DataFrame:
+        raise Exception(f"structure_dataframe() requires a pandas dataframe as input. However, this was given: {type(new_data)} (called from {calling_function})")
+
+    structured_data = {
+        data_source or calling_function: {
+            data_entry: new_data
+        }
+    }
+    
+    # add new data to existing data (or an empty dict if not supplied)
+    existing_data.update(structured_data)
+    return existing_data
+

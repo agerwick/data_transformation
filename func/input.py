@@ -1,12 +1,13 @@
 import sys
 import pandas as pd
-from func.shared import get_filenames
+from func.shared import get_filenames, print_data_summary
 
 def get_input_data(input_files_from_args, transform_file_input_section, quiet=False):
     """ 
     Read input data from files specified in the transform file.
     The input data is returned as a pandas dataframe.
     """
+    transform_file_input_section = transform_file_input_section or []
 
     # get input file names
     input_filenames = get_filenames(
@@ -27,89 +28,104 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
     rename_fields = [input_file.get("rename_fields") for input_file in transform_file_input_section]
 
     # get spreadsheet sheet names (if any)
-    sheet_names = [input_file.get("sheets") for input_file in transform_file_input_section]
+    transform_file_sheet_names = [input_file.get("sheets") for input_file in transform_file_input_section]
 
     # all of the above return lists in the same order as the input files so it can be easily accessed with the index, and if a value is not defined for a specific input file, the corresponding list element is None
 
     # read input
     input_fields_per_file = []
-    input_data = pd.DataFrame()
+    input_data = {}
+    # input_data is a dictionary with data_source ("input_1", "input_2"), etc as keys and the data_entry as values. 
+    # The data_entry is a dictionary with sheet names as keys ("csv" for CSV files) and dataframes as values.
     for index, input_filename in enumerate(input_filenames, start=0):
         # determine what type of file we are reading
         if input_filename.endswith('.csv'):
-            tmp_data = pd.read_csv(input_filename)
+            # to make loading a csv compatible with loading a multi sheet spreadsheet, we load it into a dictionary with a single key 'csv'
+            tmp_data = {"csv": pd.read_csv(input_filename)}
         # check if input file is a spreadsheet ('.ods', '.xlsx', '.xls')
         elif input_filename.endswith('.ods') or input_filename.endswith('.xlsx') or input_filename.endswith('.xls'):
-            # Quit if multiple input_filenames are specified and at least one of them is a spreasheet, as loading multiple spreadsheets at once is not supported
-            if len(input_filenames) > 1:
-                # explain why we are quitting, then quit gracefully
-                print("Multiple input files were specified, and at least one of them is a spreadsheet.")
-                print("Loading multiple spreadsheets at once is not supported.")
-                print("An alternative could be to extract the fields you need from each spreadsheet and generate a CSV file, then load and transform these CSV files.")
-                sys.exit(1)
             if not quiet:
                 print(f"Reading input file #{index + 1} (spreadsheet)")
                 sys.stdout.flush() # flush stdout so that the print statement above is printed immediately
             spreadsheet = pd.ExcelFile(input_filename)
-            if len(spreadsheet.sheet_names) == 1:
-                # if there's only one sheet in the spreadsheet, just read it as if it was a CSV file
-                if not quiet:
-                    print(f"Spreadsheet has only one sheet ({spreadsheet.sheet_names[0]}) -- loading the dataframe directly into the input data")
-                    sys.stdout.flush()
-                tmp_data = pd.read_excel(input_filename)
-            else:
-                # loop through all sheets in the spreadsheet and read them into a dictionary with sheet names as keys
-                if not quiet:
-                    print(f"Spreadsheet has multiple sheets:")
-                    for sheet_name in pd.ExcelFile(input_filename).sheet_names:
-                        print(f"  {sheet_name}")
-                    print("Loading each sheet into a separate dataframe and combining them as a dictionary with sheet names as keys.")
-                    print("Fields can be referred to in the transform file by prefixing them with the sheet name and | (pipe), for example: Sheet1|Column1.")
-                    if sheet_names[index]:
-                        print(f"Sheets specified in the input section of the transform file: {sheet_names[index]}")
+            # loop through all sheets in the spreadsheet and read them into a dictionary with sheet names as keys
+            if not quiet:
+                print(f"The spreadsheet has these sheets:")
+                for sheet_name in spreadsheet.sheet_names:
+                    print(f"  {sheet_name}")
+                print("Loading each sheet into a separate dataframe and combining them as a dictionary with sheet names as keys.")
+                if transform_file_sheet_names[index]:
+                    print(f"Sheets specified in the input section of the transform file: {transform_file_sheet_names[index]}")
+                else:
+                    print(f"No sheets specified in input section of the transform file.")
+                    if len(spreadsheet.sheet_names) == 1:
+                        print(f"But there's only one sheet in the spreadsheet, so it wouldn't make a difference.")
                     else:
-                        print(f"No sheets specified in input section of the transform file -- using all sheets in spreadsheet.")
-                        print("If you want to use only some of the sheets, add a 'sheets' node to the input section of the transform file.")
-                    sys.stdout.flush()
+                        print(f"Loading all sheets in spreadsheet.")
+                        print("If you want to use only some of the sheets, add a 'sheets' node to the input section of the transform file and specify sheet names there.")
+                sys.stdout.flush()
                 tmp_data = {}
                 # loop through all the specified sheets, or if none are specified, all sheets in the spreadsheet
-                for sheet_name in sheet_names[index] or spreadsheet.sheet_names:
+                for sheet_name in transform_file_sheet_names[index] or spreadsheet.sheet_names:
                     if not quiet:
                         print(f"Reading sheet {sheet_name}")
                         sys.stdout.flush()
                     if not sheet_name in spreadsheet.sheet_names:
-                        print(f"Sheet '{sheet_name}' not found in spreadsheet - exiting...")
+                        print(f"ERROR:\nSheet '{sheet_name}' not found in spreadsheet - exiting...")
                         sys.exit(1)
                     tmp_data[sheet_name] = pd.read_excel(input_filename, sheet_name=sheet_name)
+        else:
+            print(f"ERROR:\nUnsupported input file type: {input_filename} - exiting...")
+            sys.exit(1)
 
-        # add prefix to field names if defined in transform file
-        # but only if tmp_data has a single sheet only
-        if isinstance(tmp_data, pd.DataFrame): # on sheet only (not a dictionary)
-            if field_prefixes[index]:
-                tmp_data = tmp_data.add_prefix(field_prefixes[index]+'_')
-            if field_suffixes[index]:
-                tmp_data = tmp_data.add_suffix('_'+field_suffixes[index])
-            if rename_fields[index]:
-                tmp_data = tmp_data.rename(columns=rename_fields[index])
+        # field renaming (prefixing, suffixing, renaming) which is mostly used for CSV files
+        field_prefix = field_suffix = rename_field = None
+        if len(field_prefixes) > index:
+            field_prefix = field_prefixes[index]
+        if len(field_suffixes) > index:
+            field_suffix = field_suffixes[index]
+        if len(rename_fields) > index:
+            rename_field = rename_fields[index]
+        
+        if field_prefix or field_suffix or rename_field:
+            # add entries so that the lists are the same length as the number of input files
+            # loop through all sheets in the spreadsheet and do renaming, prefixing, suffixing:
+            for sheet_name, sheet_data in tmp_data.items():
+                # add prefix to field names if defined in transform file and the field name exists
+                if field_prefix and sheet_data.columns.isin([field_prefix]).any():
+                    print(f"Adding prefix '{field_prefix}_' to field names in data entry '{sheet_name}'")
+                    sheet_data = sheet_data.add_prefix(field_prefix+'_')
+                if field_suffix and sheet_data.columns.isin([field_suffix]).any():
+                    print(f"Adding suffix '_{field_suffix}' to field names in data entry '{sheet_name}'")
+                    sheet_data = sheet_data.add_suffix('_'+field_suffix)
+                if rename_field and sheet_data.columns.isin(list(rename_field.keys())).any():
+                    print(f"Renaming fields {list(rename_field.keys())} in data entry '{sheet_name}' to {list(rename_field.values())}:")
+                    sheet_data = sheet_data.rename(columns=rename_field)
+                tmp_data[sheet_name] = sheet_data
+                # TODO: this renaming is now done across all sheets, but it should be done per sheet, if we had a way to specify which sheet the renaming applies to.
+                # this could for example be by specifying the renaming under the sheet name in the json transform file, like this:
+                # "input": [
+                #     {
+                #         "sheets": [
+                #                     {
+                #                       "name": "Record Layer",
+                #                       "rename_fields": {
+                #                         "old_field_name": "new_field_name"
+                #                       }
+                #                     }
+                #                   ]
+                #     }
+                # ]
+                # we would need to detect if the sheet name is a string or a dictionary, and if it's a dictionary, we would need to loop through the sheets and rename the fields for each sheet
+                # however, as this is not needed yet, we'll leave it for now
+                # renaming fields has only been useful for single sheet spreadsheets or CSV files, so it's not a big problem that it's not implemented for multi sheet spreadsheets yet
 
-            input_data = input_data.combine_first(tmp_data)
-            input_fields_per_file.append(list(tmp_data.columns))
-        elif isinstance(tmp_data, dict): # multiple sheets (a dictionary)
-            input_data = tmp_data # we can do this because loading multiple sheets is not supported
+        # add the dictionary with data entries and dataframes to the input_data dictionary with data source ("input_1, ...") as keys
+        input_data[f"input_{index + 1}"] = tmp_data
 
     # print field names of input data
     if not quiet:
-        if isinstance(input_data, pd.DataFrame): # one sheet only (not a dictionary)
-            for index, input_fields in enumerate(input_fields_per_file, start=1):
-                print(f"Input fields from file #{index}: {list(input_fields)}")
-            if len(input_fields_per_file) > 1:
-                print(f"All input fields: {', '.join(input_data.columns)}")
-        elif isinstance(input_data, dict): # multiple sheets (a dictionary)
-            for sheet_name, sheet_data in input_data.items():
-                print(f"Input fields from sheet '{sheet_name}': {list(sheet_data.columns)}")
-        else:
-            print(f"System error: Unsupported type of input data: {type(input_data)} -- exiting")
-            sys.exit(1)
         print()
+        print_data_summary(input_data)
 
     return input_data

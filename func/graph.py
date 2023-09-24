@@ -1,6 +1,6 @@
 from func.shared import replace_placeholders # function to replace {var} placeholders in strings with values from a dictionary, used for file names, titles and series labels in graphs
 
-def generate_graphs(graphs, output_data, metadata={}):
+def generate_graphs(graphs, output_data, metadata={}, quiet=False):
     """
     Generate Graphs from Output Data.
 

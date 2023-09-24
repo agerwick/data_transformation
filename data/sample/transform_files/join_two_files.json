@@ -1,15 +1,7 @@
 {
     "input": [
-        {
-            "filename": "data/sample/input/names_and_addresses.csv",
-            "field_prefix": "",
-            "field_suffix": ""
-        },
-        {
-            "filename": "data/sample/input/customer_numbers.csv",
-            "field_prefix": "",
-            "field_suffix": ""
-        },
+        {"filename": "data/sample/input/names_and_addresses.csv"},
+        {"filename": "data/sample/input/customer_numbers.csv"},
         {
             "filename": "data/sample/input/customer_numbers2.csv",
             "field_prefix": "",
@@ -19,9 +11,22 @@
             }
         }
     ],
+    "import": [
+        {
+            "module": "transform_functions.public.merge",
+            "functions": ["merge_by_column"]
+        }
+    ],
+    "transformations": [
+        {
+            "function": "merge_by_column"
+        }
+    ],
     "output": [
         {
             "filename": "data/sample/output/cutomer_id_names_addresses.csv",
+            "data_source": "merge_by_column",
+            "data_entry": "data",
             "fields": ["customer_id", "customer_id2", "*"]
         }
     ]

@@ -1,6 +1,8 @@
+import sys
 import pandas as pd
+from func.shared import check_data_source_and_entry, structure_dataframe
 
-def split_name(input_data, input_fields, output_fields):
+def split_name(input_data, input_section, output_fields):
     """
     Split Full Names into First Name and Last Name Columns.
 
@@ -10,7 +12,7 @@ def split_name(input_data, input_fields, output_fields):
 
     Args:
         input_data (pd.DataFrame): The input DataFrame containing the data to be split.
-        input_fields (list): A list containing the name of the input field to be split.
+        input_section (list or dict): (see below)
         output_fields (list): A list containing the names of the output fields
                              where the first name and last name will be stored.
 
@@ -30,6 +32,13 @@ def split_name(input_data, input_fields, output_fields):
 
         input_fields:
             ['name']
+            or
+            {
+                data_source: "input1",
+                data_entry: "csv",
+                fields: ["name"]
+            }
+            note that supplying the fields as a list will only work if there is only one input file and that file is a CSV file or a spreadsheet with only one sheet
 
         output_fields:
             ['first_name', 'last_name']
@@ -49,6 +58,15 @@ def split_name(input_data, input_fields, output_fields):
                 Jane           Smith
                 Robert         Johnson
     """
+    input_section = check_data_source_and_entry(input_data, input_section)
+    if not input_section:
+        print("Exiting...")
+        sys.exit(1)
+
+    data_source = input_section['data_source']
+    data_entry = input_section['data_entry']
+    input_fields = input_section['fields']
+
     if len(input_fields) != 1:
         raise Exception(f"split_name() requires exactly one input field: name -- however, this was given: {input_fields}")
     if len(output_fields) != 2:
@@ -56,7 +74,7 @@ def split_name(input_data, input_fields, output_fields):
     output_data = pd.DataFrame()
     first_names = []
     last_names = []
-    for index, row in input_data.iterrows():
+    for _, row in input_data.get(data_source).get(data_entry).iterrows():
         # if name is "last_name, first_name"
         if ',' in row[input_fields[0]]:
             last_name, first_name = [part.strip() for part in row[input_fields[0]].split(',', 1)]
@@ -71,8 +89,9 @@ def split_name(input_data, input_fields, output_fields):
         last_names.append(last_name.strip())
     output_data[output_fields[0]] = first_names
     output_data[output_fields[1]] = last_names
+
     metadata = {}
-    return output_data, metadata
+    return structure_dataframe(output_data, input_data), metadata
 
 def combine_name_to_first_last(input_data, input_fields, output_fields):
     """
@@ -124,6 +143,15 @@ def combine_name_to_first_last(input_data, input_fields, output_fields):
             | John Doe     |
             | Jane Smith   |
     """
+    input_section = check_data_source_and_entry(input_data, input_section)
+    if not input_section:
+        print("Exiting...")
+        sys.exit(1)
+
+    data_source = input_section['data_source']
+    data_entry = input_section['data_entry']
+    input_fields = input_section['fields']
+
     if len(input_fields) != 2:
         raise Exception(f"combine_name() requires exactly two input fields: first_name and last_name -- however, this was given: {input_fields}")
     if len(output_fields) != 1:
@@ -135,4 +163,4 @@ def combine_name_to_first_last(input_data, input_fields, output_fields):
         names.append(full_name)
     output_data[output_fields[0]] = names
     metadata = {}
-    return output_data, metadata
+    return structure_dataframe(output_data, input_data), metadata

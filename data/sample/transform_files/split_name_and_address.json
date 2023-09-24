@@ -7,30 +7,47 @@
         {
             "module": "transform_functions.public.address_norway",
             "functions": ["split_address"]
+        },
+        {
+            "module": "transform_functions.public.merge",
+            "functions": ["merge_by_column"]
         }
     ],
     "transformations": [
         {
-            "input": ["name"],
             "function": "split_name",
+            "input": ["name"],
             "output": ["first_name", "last_name"]
         },
         {
-            "input": ["address"],
             "function": "split_address",
+            "input": {
+                "data_source": "input_1",
+                "data_entry": "csv",
+                "fields": ["address"]
+            },
             "output": ["address_street", "address_house_number", "address_suffix", "postal_code", "city"]
+        },
+        {
+            "function": "merge_by_column"
         }
     ],
     "output": [
         {
             "filename": "data/sample/output/names_and_addresses_split.csv",
+            "data_source": "merge_by_column",
+            "data_entry": "data",
             "fields": ["name", "first_name", "last_name", "address", "address_street", "address_house_number", "address_suffix", "postal_code", "city"]
         },
         {
+            "data_source": "split_name",
+            "data_entry": "data",
             "filename": "data/sample/output/name_only.csv",
             "fields": ["first_name", "last_name"]
         },
         {
+            "data_source": "merge_by_column",
+            "data_entry": "data",
             "filename": "data/sample/output/address_only.csv",
             "fields": ["address", "address_street", "address_house_number", "address_suffix", "postal_code", "city"]
         }

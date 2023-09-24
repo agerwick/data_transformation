@@ -4,7 +4,7 @@ import argparse
 import importlib
 import sys
 
-from func.shared import get_filenames
+from func.shared import get_filenames, print_data_summary, check_data_source_and_entry
 from func.input import get_input_data
 
 def main():
@@ -42,25 +42,24 @@ def main():
             sys.exit(1)
 
     # read input files
-    input_data = get_input_data(
+    data = get_input_data(
         getattr(args, "input", False), #comma separated string of input files from args
         transform_file.get('input'),
         quiet=args.quiet
     )
 
     # transform data
-    output_data = pd.DataFrame()
-    try:
-        transformations = transform_file['transformations']
-    except KeyError:
-        transformations = []
+    # output_data = pd.DataFrame()
+    transformations = transform_file.get('transformations')
 
-    # if input data is a dataframe, this means we're dealing with a single sheet or csv file, that could be combined with others (if multiple input files are specified)
-    if isinstance(input_data, pd.DataFrame):
-        # add an index column to the input data so that it can be combined with the transformed data
-        input_data['__index__'] = input_data.index
-    # copy input data to output data
-    output_data = input_data # maybe this should be output_data = input_data.copy() ? (to avoid modifying input_data) -- but do we really need the input data again?
+    # # if input data is a dataframe, this means we're dealing with a single sheet or csv file, that could be combined with others (if multiple input files are specified)
+    # if isinstance(input_data, pd.DataFrame):
+    #     # add an index column to the input data so that it can be combined with the transformed data
+    #     input_data['__index__'] = input_data.index
+    # # copy input data to output data
+    
+    # assign input data to output data so that we can keep passing output_data to the next transformation function
+    # output_data = input_data
 
     # go through each transformation defined in the transform file (json) and apply the result to the output data
     for index, transformation in enumerate(transformations, start=1):
@@ -80,43 +79,17 @@ def main():
             f"Currently, the following functions have been defined:\n{available_functions}\n"
             raise Exception(function_not_found_exception_message)
 
-        # apply transform function to input data to procude output data
-        transformed_data, metadata = transform_function(output_data, input_fields, output_fields)
+        # apply transform function to data to procude updated data
+        data, metadata = transform_function(data, input_fields, output_fields)
 
         # check for metadata returned by transform function
         if metadata:
             if not args.quiet:
                 print(f"Metadata returned by transform function #{index} ({transformation['function']}): {metadata}")
-            if metadata.get('clear_input_data'):
-                # delete all existing data in the output table before writing the new data returned from the transform function
-                output_data = pd.DataFrame()
 
         if not args.quiet:
-            print(f"Output fields produced by transform function #{index} ({transformation['function']}): {list(transformed_data.columns)}")
-            print(f"Number of rows in output data: {len(transformed_data)}")
-
-        if isinstance(input_data, pd.DataFrame): # one sheet only (not a dictionary)
-            if not transformed_data.empty:
-                # add an index column to the transformed data so that it can be combined with the input and output data
-                transformed_data['__index__'] = transformed_data.index
-
-                # add transformed data to output data
-                # output_data already has an index column, as it was added to input_data in the previous iteration, from which output_data was created
-                # merging output and transformed data will overwrite fields with duplicate names in output (for example, if name from input is split into first_name and last_name in output, then combined after some transformation back into "name", the original input name will be overwritten)
-                output_data = transformed_data.combine_first(output_data)
-
-                # dropping the index column from the transformed data is not necessary, as it will never be used again
-                # transformed_data = transformed_data.drop(columns=['__index__'])
-        elif isinstance(input_data, dict): # multiple sheets (a dictionary)
-            output_data = transformed_data # we can do this because loading multiple sheets is not supported
-
-    # if input data is a dataframe, this means we're dealing with a single sheet or csv file, that could be combined with others (if multiple input files are specified)
-    if isinstance(input_data, pd.DataFrame): # one sheet only (not a dictionary)
-        # drop the index column from output data
-        if '__index__' in output_data.columns:
-            output_data = output_data.drop(columns=['__index__'])
-        # dropping the index column from input data is not necessary, as it will never be used again
-        # input_data = input_data.drop(columns=['__index__'])
+            print(f"\nOutput fields produced by transform function #{index} ({transformation['function']}):")
+            print_data_summary(data)
 
     if len(transformations) == 0:
         # if no transformations are specified, this script could still be used to extract data from a CSV file and write it to another CSV file, so just write a helpful note.
@@ -136,20 +109,44 @@ def main():
         quiet=args.quiet
     )
 
-    # if there's no data in the output, don't write anything
-    if output_data.empty:
+    # if there's no data, don't write anything
+    if not data:
         if not args.quiet:
             print("No data in output -- nothing will be written to output file(s)")
         sys.exit(0)
 
+    output_section = transform_file.get('output')
+
+    # sample output section:
+    # [
+    #     {
+    #         "filename": "data/sample/output/names_and_addresses_split.csv",
+    #         "fields": ["name", "first_name", "last_name", "address", "address_street", "address_house_number", "address_suffix", "postal_code", "city"]
+    #     }
     # write output file(s)
-    for index, output in enumerate(transform_file['output'], start=0):
-        output_fields = output['fields']
+    for index, output_node in enumerate(output_section, start=0):
+        output_node = check_data_source_and_entry(data, output_node, section=f"output")
+        if not output_node:
+            print("Exiting...")
+            sys.exit(1)
+
+        data_source = output_node['data_source']
+        data_entry = output_node['data_entry']
+        output_fields = output_node['fields']
+        # data_source is the name of the data source in the output data
+        # for an input file, this is "input1", "input2", etc. unless data_source_name is specified in the transform file
+        # for a transformation, this is the name of the transform function
+
+        # data_entry is the name of the data entry in the output data
+        # for CSV files it is "csv" by default
+        # for spreadsheet files it is the name of the sheet
+        # for transformations it is whatever name the transformation function gives it, typically just "data"
+
         # if any of the output fields are "*", find all fields not specified in output_fields and add them to the output
         if '*' in output_fields:
             # make a list of fields to add to the output
             fields_to_add = []
-            for field in output_data.columns:
+            for field in data.get(data_source).get(data_entry).columns:
                 if field not in output_fields:
                     fields_to_add.append(field)
             # replace '*' with fields_to_add, in the position where '*' was 
@@ -162,15 +159,19 @@ def main():
                 if not args.quiet:
                     print(f"Warning: multiple instances of '*' found in output fields for output file #{index + 1}. Only the first instance will be used.")
         output_filename = output_filenames[index]
+        data_from_output_data_entry = data.get(data_source).get(data_entry)
+        #output_data_source = output.get('data_source')
+        #data_entries_from_output_data_source = data.get(output_data_source)
+        #data_from_output_data_entry = data_entries_from_output_data_source.get(output_data_entry)
         if not args.quiet:
-            print(f"Writing to output file #{index + 1} {list(output_fields)}")
-        output_data.to_csv(output_filename, columns=output_fields, index=False)
+            print(f"Writing to output file #{index + 1} Data source:{data_source}, Data entry:{data_entry} -- {len(data_from_output_data_entry)} rows\n  Columns: {list(output_fields)}")
+        data_from_output_data_entry.to_csv(output_filename, columns=output_fields, index=False)
 
     # check for graphs to generate
     graphs = transform_file.get('graphs')
     if graphs:
         from func.graph import generate_graphs
-        generate_graphs(graphs, output_data)
+        generate_graphs(graphs, data_from_output_data_entry, args.quiet)
 
 if __name__ == "__main__":
     main()
