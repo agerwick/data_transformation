@@ -25,6 +25,12 @@ The transformation file has three sections:
 - **output_files** - a list of output files to produce, each with these attributes
   - **filename** - specifies the filename of the output file. Can be overridden with command line param --output
   - **fields** - which fields (from either input files or the transform function) to write to the output file
+- **graphs** - a list of graphs to produce, each with these attributes
+  - **filename** - specified the filename of the graph. The file format is decided by the extension (.png, .svg, ...)
+  - **title** - the title of the graph
+  - **series** - gre graphs to plot
+  - **X-axis** - X-axis attributes (only title for now)
+  - **Y-axis** - Y-axis attributes (only title for now)
 
 # Examples
 Execute these examples so see more information about what they do. The output from the script is pretty descriptive.
@@ -139,10 +145,15 @@ In this example, if the input file contains a field name called "customer_id", i
     ]
 Note that if both field_prefix/suffix and rename_fields are used on the same input file, rename_fields needs to reference the field names with the added prefix/suffix, as prefixes and suffixes are added first.
 
-## transform section
+## transformations section
 In this example, the field "name" from any of the input files will be passed to the transform function called "split_name", which will generate two new fields named "first_name" and "last_name". If any of these field names are already in use (loaded from the input files or generared by previous transformations), they will be overwritten.
 
 The entire section is optional. Transform functions will be executed in the given order, and one transform function can use the output from an earlier one.
+
+Transform functions executed in the transform functions may return metadata in addition to output data. The following meta data is currently supported:
+
+-  clear_input_data - if set to True, instead of merging output data with input data, use only the output data
+-  variable_substitutions - a dictionary with variables and values to replace in graphs. For example, if the transform function returns {variable_substitutions: {"type": "R2D2"}} which is something derived from analyzing the data and if the graph title (as defined in the transform file) is "Blah graph for {type}" then the graph title will be replaced with "Blah graph for R2D2".
 
 The "split_name" function must be declared in one of the modules imported in the import section.
 
@@ -180,3 +191,48 @@ The **"fields"** sections defines which fields are to be written to the output f
             "fields": ["customer_id", "name", "address"]
         }
     ]
+
+## graph section
+The optional graph sections defines graphs to produce. Here's an example:
+(in this example, the transform function returns metadata such as {"variable_substitution": {"date": "20230924"}}, which will be substituted in the filename and title)
+    "graphs": [
+        {
+            "filename": "data/output/temperature_{date}.svg",
+            "title": "Temperature at {date}",
+            "size": [16, 8],
+            "show_legend": "True",
+            "X-axis": {
+                "title": "Time",
+                "range": [0, 24],
+                "show_grid": "True"
+            },
+            "Y-axis": {
+                "title": "Temperature (℃)",
+                "range": [0, 25],
+                "range_autoreduce": "False",
+                "range_autoincrease": "True",
+                "range_padding": 0.1,
+                "show_grid": "True"
+            },
+            "series": [
+                {
+                    "label": "Sensor 1",
+                    "x": {
+                        "column": "Time"
+                    },
+                    "y": {
+                        "column": "Sensor1"
+                    }
+                },
+                {
+                    "label": "Sensor 2",
+                    "x": {
+                        "column": "Time"
+                    },
+                    "y": {
+                        "column": "Sensor2"
+                    }
+                }
+            ]
+        }
+    ],
