@@ -1,5 +1,5 @@
 {
-    "input_files": [
+    "input": [
         {
             "filename": "data/sample/input/battery_data_charging_state.csv"
         }
@@ -21,7 +21,7 @@
             "output": []
         }
     ],
-    "output_files": [
+    "output": [
         {
             "filename": "data/sample/output/battery_data_charging_state_pivoted.csv",
             "fields": ["*"]

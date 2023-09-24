@@ -1,22 +1,35 @@
+import sys
 import pandas as pd
-from func.shared import get_filenames, get_node_attributes
+from func.shared import get_filenames
 
-def get_input_data(args, transform_file):
+def get_input_data(input_files_from_args, transform_file_input_section, quiet=False):
     """ 
     Read input data from files specified in the transform file.
     The input data is returned as a pandas dataframe.
     """
 
     # get input file names
-    input_filenames = get_filenames(args, transform_file, 'input', fail_if_not_defined_in_transform_file=False)
+    input_filenames = get_filenames(
+        input_files_from_args,          # comma separated string of input files from args
+        transform_file_input_section,   # input section of the transform file
+        'input',                        # this is used for error messages to make it clear what kind of files we are talking about
+        fail_if_not_defined_in_transform_file=False,
+        quiet=quiet
+    )
+
+    if not input_filenames:
+        print("No input files specified in transform file or in command line arguments -- exiting...")
+        sys.exit(1)
 
     # get prefix/suffix/rename info for input file fields (if any)
-    field_prefixes = get_node_attributes(transform_file, 'input_files', 'field_prefix', default=None)
-    field_suffixes = get_node_attributes(transform_file, 'input_files', 'field_suffix', default=None)
-    rename_fields = get_node_attributes(transform_file, 'input_files', 'rename_fields', default=None)
+    field_prefixes = [input_file.get("field_prefix") for input_file in transform_file_input_section]
+    field_suffixes = [input_file.get("field_suffix") for input_file in transform_file_input_section]
+    rename_fields = [input_file.get("rename_fields") for input_file in transform_file_input_section]
 
     # get spreadsheet sheet names (if any)
-    sheet_names = get_node_attributes(transform_file, 'input_files', 'sheets', default=None)
+    sheet_names = [input_file.get("sheets") for input_file in transform_file_input_section]
+
+    # all of the above return lists in the same order as the input files so it can be easily accessed with the index, and if a value is not defined for a specific input file, the corresponding list element is None
 
     # read input
     input_fields_per_file = []
@@ -34,19 +47,19 @@ def get_input_data(args, transform_file):
                 print("Loading multiple spreadsheets at once is not supported.")
                 print("An alternative could be to extract the fields you need from each spreadsheet and generate a CSV file, then load and transform these CSV files.")
                 sys.exit(1)
-            if not args.quiet:
+            if not quiet:
                 print(f"Reading input file #{index + 1} (spreadsheet)")
                 sys.stdout.flush() # flush stdout so that the print statement above is printed immediately
             spreadsheet = pd.ExcelFile(input_filename)
             if len(spreadsheet.sheet_names) == 1:
                 # if there's only one sheet in the spreadsheet, just read it as if it was a CSV file
-                if not args.quiet:
+                if not quiet:
                     print(f"Spreadsheet has only one sheet ({spreadsheet.sheet_names[0]}) -- loading the dataframe directly into the input data")
                     sys.stdout.flush()
                 tmp_data = pd.read_excel(input_filename)
             else:
                 # loop through all sheets in the spreadsheet and read them into a dictionary with sheet names as keys
-                if not args.quiet:
+                if not quiet:
                     print(f"Spreadsheet has multiple sheets:")
                     for sheet_name in pd.ExcelFile(input_filename).sheet_names:
                         print(f"  {sheet_name}")
@@ -56,12 +69,12 @@ def get_input_data(args, transform_file):
                         print(f"Sheets specified in the input section of the transform file: {sheet_names[index]}")
                     else:
                         print(f"No sheets specified in input section of the transform file -- using all sheets in spreadsheet.")
-                        print("If you want to use only some of the sheets, add a 'sheets' node to the input_files section of the transform file.")
+                        print("If you want to use only some of the sheets, add a 'sheets' node to the input section of the transform file.")
                     sys.stdout.flush()
                 tmp_data = {}
                 # loop through all the specified sheets, or if none are specified, all sheets in the spreadsheet
                 for sheet_name in sheet_names[index] or spreadsheet.sheet_names:
-                    if not args.quiet:
+                    if not quiet:
                         print(f"Reading sheet {sheet_name}")
                         sys.stdout.flush()
                     if not sheet_name in spreadsheet.sheet_names:
@@ -85,7 +98,7 @@ def get_input_data(args, transform_file):
             input_data = tmp_data # we can do this because loading multiple sheets is not supported
 
     # print field names of input data
-    if not args.quiet:
+    if not quiet:
         if isinstance(input_data, pd.DataFrame): # one sheet only (not a dictionary)
             for index, input_fields in enumerate(input_fields_per_file, start=1):
                 print(f"Input fields from file #{index}: {list(input_fields)}")

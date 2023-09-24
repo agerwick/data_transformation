@@ -1,5 +1,5 @@
 {
-    "input_files": [
+    "input": [
         {
             "filename": "data/sample/input/names_and_addresses.csv",
             "field_prefix": "",
@@ -19,7 +19,7 @@
             }
         }
     ],
-    "output_files": [
+    "output": [
         {
             "filename": "data/sample/output/cutomer_id_names_addresses.csv",
             "fields": ["customer_id", "customer_id2", "*"]

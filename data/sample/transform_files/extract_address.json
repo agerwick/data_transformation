@@ -1,5 +1,5 @@
 {
-    "output_files": [
+    "output": [
         {
             "fields": ["address"]
         }

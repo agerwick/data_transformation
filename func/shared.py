@@ -1,6 +1,12 @@
 from tabulate import tabulate
 
-def get_filenames(args, transform_file, xput, fail_if_not_defined_in_transform_file=True):
+def get_filenames(
+        files_from_args, 
+        files_from_transform_file, 
+        file_type,
+        fail_if_not_defined_in_transform_file=True, 
+        quiet=False
+    ):
     """
     Get List of Input/Output File Names from Command Line or Transform File.
 
@@ -11,9 +17,9 @@ def get_filenames(args, transform_file, xput, fail_if_not_defined_in_transform_f
     to the transform file to match the number of filenames provided on the command line.
 
     Args:
-        args (Namespace): The parsed command line arguments from argparse.
-        transform_file (dict): The loaded transform configuration from the JSON file.
-        xput (str): The type of file (e.g., 'input' or 'output').
+        files_from_args (str): A string with a comma separated list of file names from args.
+        files_from_transform_file (dict): the input or output section from the transform file.
+        file_type (str): The type of files (e.g., 'input' or 'output'). (only used for error messages to refer to the command line argument or section in the transform file)
         fail_if_not_defined_in_transform_file (bool, optional): Determines whether to raise an
           exception if the specified node is not defined in the transform file.
           Defaults to True. For output files, this should be set to True, otherwise we won't
@@ -29,8 +35,8 @@ def get_filenames(args, transform_file, xput, fail_if_not_defined_in_transform_f
                    and the transform file.
 
     Example:
-        transform_file:
-            "input_files": [
+        files_from_transform_file:
+            [
                 {"filename": "input_file_1.csv"},
                 {"filename": "input_file_2.csv"}
             ]
@@ -39,22 +45,19 @@ def get_filenames(args, transform_file, xput, fail_if_not_defined_in_transform_f
             input: input_file_3.csv,input_file_4.csv
 
         Code:
-            from transform import get_filenames
-            from argparse import Namespace
-            transform_file = {
-                "input_files": [
-                    {"filename": "input_file_1.csv"},
-                    {"filename": "input_file_2.csv"}
-                ]
-            }
-            args = Namespace(input="_,input_file_4.csv", transform="transform_file.json", quiet=False)
-            filenames = get_filenames(args, transform_file, "input")
+            from func/shared import get_filenames
+            files_from_transform_file = [
+                {"filename": "input_file_1.csv"},
+                {"filename": "input_file_2.csv"}
+            ]
+            files_from_args = ["input_file_4.csv"]
+            filenames = get_filenames(files_from_args, files_from_transform_file, "input")
             filenames
 
         Prints:
             Input file #1: input_file_1.csv (from transform file)
             Input file #2: input_file_4.csv (from command line)
-        (unless --quiet is set on the command line)
+        (unless quiet=True)
 
         Returns:
             ['input_file_1.csv', 'input_file_4.csv']
@@ -63,49 +66,42 @@ def get_filenames(args, transform_file, xput, fail_if_not_defined_in_transform_f
     filenames = []
     filenames_for_error_message = []
     filename_help = ''
-    raise_exception = False
-    try:
-        transform_file[f'{xput}_files']
-    except KeyError:
-        transform_file[f'{xput}_files'] = []
+    print_help = False
+
+    # if no files are passed in the section_of_transform_file, set it to an empty list and optionally raise an exception
+    if not files_from_transform_file:
+        files_from_transform_file = []
         if fail_if_not_defined_in_transform_file:
             filename_help += \
-            f"No nodes defined in the {xput}_files section of the transform file.\n"\
-            f"This section should contain a node for each {xput} file.\n"
-            raise_exception = True
+            f"No nodes defined in the {file_type} section of the transform file.\n"\
+            f"This section should contain a node for each {file_type} file.\n"
+            print_help = True
+
+    files_from_args_list = files_from_args.split(',') if files_from_args else []
     
     # make sure that the number of filenames defined in the transform file matches or exceeds the number of filenames given on the command line
-    if getattr(args, xput, False):
-        number_of_files_from_args = len(getattr(args, xput).split(','))
-        number_of_files_from_transform_file = len(transform_file[f'{xput}_files'])
+    if files_from_args:
+        number_of_files_from_args = len(files_from_args_list)
+        number_of_files_from_transform_file = len(files_from_transform_file)
         if number_of_files_from_transform_file < number_of_files_from_args:
             if fail_if_not_defined_in_transform_file:
                 filename_help += \
-                f"Number of {xput} files defined in the transform file ({number_of_files_from_transform_file}) is less than the number of {xput} files defined on the command line ({number_of_files_from_args}).\n"
-                raise_exception = True
+                f"ERROR:\nNumber of {file_type} files defined in the transform file ({number_of_files_from_transform_file}) is less than the number of {file_type} files defined on the command line ({number_of_files_from_args}).\n"
+                print_help = True
             else:
                 # add empty nodes to the transform file to match the number of filenames given on the command line
                 for i in range(number_of_files_from_args - number_of_files_from_transform_file):
-                    transform_file[f'{xput}_files'].append({})
+                    files_from_transform_file.append({})
 
-    for index, xput_node in enumerate(transform_file[f'{xput}_files'], start=0):
-        try:
-            filename_from_transform_file = xput_node['filename']
-        except KeyError:
-            filename_from_transform_file = None
-        
-        try:
-            filename_from_command_line = getattr(args, xput, False).split(',')[index]
-            if filename_from_command_line == '_':
-                # replace placeholder with None - filename from transform file will be used instead
+    for index, file_from_transform_file in enumerate(files_from_transform_file, start=0):
+        filename_from_transform_file = file_from_transform_file.get('filename')
+        if index < len(files_from_args_list):
+            filename_from_command_line = files_from_args_list[index]
+            # replace empty string, space(s) or placeholder _ with None - filename from transform file will be used instead
+            if filename_from_command_line.strip(' ') in ['', '_']:
                 filename_from_command_line = None
-        except Exception:
-            # IndexError     - no filename for this index given on command line
-            # AttributeError - in/output_files not defined in args
-            if index == 0 and getattr(args, xput, False): # 1st argument and one arg is given
-                filename_from_command_line = getattr(args, xput)
-            else:
-                filename_from_command_line = None
+        else:
+            filename_from_command_line = None
         
         # assemble list of file names for error message
         filenames_for_error_message.append([index + 1, filename_from_command_line, filename_from_transform_file])
@@ -113,32 +109,33 @@ def get_filenames(args, transform_file, xput, fail_if_not_defined_in_transform_f
         if filename_from_transform_file or filename_from_command_line:
             filenames.append(filename_from_command_line or filename_from_transform_file)
         else:
-            filename_help += f"File name not defined for {xput} #{index + 1}.\n"
-            raise_exception = True
+            filename_help += f"File name not defined for {file_type} #{index + 1}.\n"
+            print_help = True
 
     filename_help += \
-    f"\nThe {xput} filename(s) can be defined as a command line argument --{xput} (comma separated list if more than one) or in {xput}_files section in the transform file '{args.transform}' (as a filename attribute under each {xput} node).\n" + \
+    f"\nThe {file_type} filename(s) can be defined as a command line argument --{file_type} (comma separated list if more than one) or in the {file_type} section in the transform file (as a filename attribute under each {file_type} node).\n" + \
     f"File names specified on the command line takes precedence over file names defined in the transform file.\n" + \
-    f"A single underscore can be used as a placeholder for a filename on the command line if the filename is defined in the transform file and you don't want to override it with a command line argument.\n\n" + \
-    f"The following {xput} files were specified:\n"
+    f"A single underscore (or nothing) can be used as a placeholder for a filename on the command line if the filename is defined in the transform file and you don't want to override it with a command line argument, but you want to override another file.\n" + \
+    f"example: --{file_type}=_,_,3rdfile.csv\n" + \
+    f"(here the 1st and 2nd filename will be from the transform file and the 3rd from the command line)\n\n" + \
+    f"The following {file_type} files were specified:\n"
 
     # format table for error message
     tabulate(filenames_for_error_message, headers=["#", "Command line argument", "Transform file"], tablefmt="psql", showindex=False)
 
-    if raise_exception:
-        print(filename_help)
-        sys.exit(1)
-
     if not filenames:
-        print(f"No {xput} file names defined.\n{filename_help}")
-        sys.exit(1)
+        print(f"ERROR:\nNo {file_type} file names defined.")
+        print_help = True
     
-    if not getattr(args, "quiet", False): # unless args.quiet
+    if print_help:
+        print(filename_help)
+
+    if not quiet:
         for index, filename_from_command_line, filename_from_transform_file in filenames_for_error_message:
             if filename_from_command_line:
-                print(f"{xput.capitalize()} file #{index}: {filename_from_command_line} (from command line)")
+                print(f"{file_type.capitalize()} file #{index}: {filename_from_command_line} (from command line)")
             elif filename_from_transform_file:
-                print(f"{xput.capitalize()} file #{index}: {filename_from_transform_file} (from transform file)")
+                print(f"{file_type.capitalize()} file #{index}: {filename_from_transform_file} (from transform file)")
 
     return filenames
 

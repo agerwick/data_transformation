@@ -35,7 +35,7 @@ def generate_graphs(graphs, output_data, metadata={}):
         print()
         graph_title = replace_placeholders(graph['title'], variable_substitutions)
         graph_filename = replace_placeholders(graph['filename'], variable_substitutions)
-        print(f"Generating graph #{graph_id} ({graph_title}))")
+        print(f"Generating graph #{graph_id} ({graph_title})")
         # NOTE: rcParams must be set before creating the figure, otherwise it will have no effect
         plt.rcParams['figure.figsize'] = graph.get('size') or [16, 8]
         plt.title(

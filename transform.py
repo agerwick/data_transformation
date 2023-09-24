@@ -41,7 +41,12 @@ def main():
             print(f"(the path starts in the same directory as transform.py)")
             sys.exit(1)
 
-    input_data = get_input_data(args, transform_file)
+    # read input files
+    input_data = get_input_data(
+        getattr(args, "input", False), #comma separated string of input files from args
+        transform_file.get('input'),
+        quiet=args.quiet
+    )
 
     # transform data
     output_data = pd.DataFrame()
@@ -123,7 +128,13 @@ def main():
             print()
 
     # get ouput file names
-    output_filenames = get_filenames(args, transform_file, 'output', fail_if_not_defined_in_transform_file=True)
+    output_filenames = get_filenames(
+        getattr(args, "output", False),
+        transform_file.get('output'),
+        'output', # this is used for error messages to make it clear what kind of files we are talking about
+        fail_if_not_defined_in_transform_file=True,
+        quiet=args.quiet
+    )
 
     # if there's no data in the output, don't write anything
     if output_data.empty:
@@ -132,7 +143,7 @@ def main():
         sys.exit(0)
 
     # write output file(s)
-    for index, output in enumerate(transform_file['output_files'], start=0):
+    for index, output in enumerate(transform_file['output'], start=0):
         output_fields = output['fields']
         # if any of the output fields are "*", find all fields not specified in output_fields and add them to the output
         if '*' in output_fields:

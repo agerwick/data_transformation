@@ -21,7 +21,7 @@
             "output": ["address_street", "address_house_number", "address_suffix", "postal_code", "city"]
         }
     ],
-    "output_files": [
+    "output": [
         {
             "filename": "data/sample/output/names_and_addresses_split.csv",
             "fields": ["name", "first_name", "last_name", "address", "address_street", "address_house_number", "address_suffix", "postal_code", "city"]

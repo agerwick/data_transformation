@@ -17,12 +17,12 @@ The transformation file has three sections:
   - **input** - which input fields to send to the transform function
   - **function** - which transform function to use
   - **output** - what to call the output fields produced by the transform function
-- **input_files** - a list of input files to read from, each with these attributes
+- **input** - a list of input files to read from, each with these attributes
   - **filename** - specified the filename of the input file. Can be overridden with command line param --input
   - **field_prefix** - an optional prefix to add to each field name for this file. Used to avoid two fields with the same name.
   - **field_suffix** - an optional suffix to add to each field name 
   - **rename_field** - contains a list of key/value pairs where the key is the field name in this file and the value is the field name to use instead. This is used in cases where only a few fields have the same name as previously loaded files
-- **output_files** - a list of output files to produce, each with these attributes
+- **output** - a list of output files to produce, each with these attributes
   - **filename** - specifies the filename of the output file. Can be overridden with command line param --output
   - **fields** - which fields (from either input files or the transform function) to write to the output file
 - **graphs** - a list of graphs to produce, each with these attributes
@@ -118,7 +118,7 @@ An empty node is a valid entry, and can be used for example if input file #1 wil
 
 In this example, a filename is specified for input file #2. It will be used unless another one is specified on the command line, and it will fail if input file #1 is not specified on the command line:
 
-    "input_files": [
+    "input": [
         {},
         {
             "filename": "data/sample/input/names_and_addresses.csv"
@@ -126,7 +126,7 @@ In this example, a filename is specified for input file #2. It will be used unle
     ]
 In this example, if the input file contains a fields called "customer_id" and "name", they will be renamed to "original_customer_id_from_legacy_software" and "original_name_from_legacy_software", respectively.
 
-    "input_files": [
+    "input": [
         {
             "filename": "data/sample/input/customer_numbers.csv",
             "field_prefix": "original",
@@ -135,7 +135,7 @@ In this example, if the input file contains a fields called "customer_id" and "n
     ]
 In this example, if the input file contains a field name called "customer_id", it will be renamed to "customer_id2". If the field doesn't exist, nothing will happen.
 
-    "input_files": [
+    "input": [
         {
             "filename": "data/sample/input/customer_numbers2.csv",
             "rename_fields": {
@@ -185,7 +185,7 @@ The output sections defines the file names and field names for the output file(s
 The **"filename"** parameter is optional, but must be provided on the command line if not defined. If defined both places, the file name provided on the command line takes precedence.
 The **"fields"** sections defines which fields are to be written to the output file. Obviously these fields must all exist. They can be a combination of fields copied from the input files and output from the transform functions.
 
-    "output_files": [
+    "output": [
         {
             "filename": "data/sample/output/cutomer_id_names_addresses.csv",
             "fields": ["customer_id", "name", "address"]

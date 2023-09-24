@@ -1,5 +1,5 @@
 {
-    "input_files": [
+    "input": [
         {
             "filename": "data/sample/input/names_and_addresses.csv"
         }
@@ -22,7 +22,7 @@
             "output": ["name"]
         }
     ],
-    "output_files": [
+    "output": [
         {
             "filename": "data/sample/output/normalized_names_with_addresses.csv",
             "fields": ["name", "address"]
