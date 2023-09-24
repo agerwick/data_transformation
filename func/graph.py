@@ -1,4 +1,6 @@
-def generate_graphs(graphs, output_data):
+from func.shared import replace_placeholders # function to replace {var} placeholders in strings with values from a dictionary, used for file names, titles and series labels in graphs
+
+def generate_graphs(graphs, output_data, metadata={}):
     """
     Generate Graphs from Output Data.
 
@@ -8,8 +10,15 @@ def generate_graphs(graphs, output_data):
     Args:
         graphs (list): A list of graph definitions from the transform file.
         output_data (DataFrame): The output data from the transformations.
+        metadata (dict): The metadata from the transformations. (we need this to get variable_substitutions for the graph file names, titles and series labels)
     """
     import matplotlib.pyplot as plt
+    variable_substitutions = metadata.get('variable_substitution') or {}
+    # example:
+    # variable_substitutions = {"temperature": "25"}
+    # graph_title = "The temperature is {temperature} degrees Celsius"
+    # print(replace_placeholders(graph_title, variable_substitutions))
+    # output: The temperature is 25 degrees Celsius
 
     for graph_id, graph in enumerate(graphs):
         # NOTE: Adding breakpoints within the plotting (between any of the plt. assignments) will cause the graph not to be plotted correctly and give the following error:
@@ -24,11 +33,13 @@ def generate_graphs(graphs, output_data):
                 continue
 
         print()
-        print(f"Generating graph #{graph_id} ({graph['title']}))")
+        graph_title = replace_placeholders(graph['title'], variable_substitutions)
+        graph_filename = replace_placeholders(graph['filename'], variable_substitutions)
+        print(f"Generating graph #{graph_id} ({graph_title}))")
         # NOTE: rcParams must be set before creating the figure, otherwise it will have no effect
         plt.rcParams['figure.figsize'] = graph.get('size') or [16, 8]
         plt.title(
-            graph['title'], 
+            graph_title, 
             fontsize = graph.get('title_fontsize') or 'large',
             loc = graph.get('title_loc') or 'center',
             fontweight = graph.get('title_fontweight') or 'bold'
@@ -40,7 +51,7 @@ def generate_graphs(graphs, output_data):
             if not axis_definition:
                 # create an empty one
                 graph[graph_definition_key] = {}
-            axis_title = axis_definition.get('title')
+            axis_title = replace_placeholders(axis_definition.get('title'), variable_substitutions)
             # set axis titles if defined
             if axis_title:
                 if graph_definition_key == 'X-axis':
@@ -80,7 +91,7 @@ def generate_graphs(graphs, output_data):
                 continue
 
             # get series title
-            line_label = line.get('label')
+            line_label = replace_placeholders(line.get('label'), variable_substitutions)
             if not line_label:
                 line_label = y_column_name # use y column name as series title if not defined
 
@@ -99,6 +110,6 @@ def generate_graphs(graphs, output_data):
             plt.legend(series_labels)
 
         # save graph to file
-        print(f"Saving graph #{graph_id} ({graph['title']}) to file '{graph['filename']}'")
-        plt.savefig(graph['filename'])
+        print(f"Saving graph #{graph_id} ({graph_title}) to file '{graph_filename}'")
+        plt.savefig(graph_filename)
 
