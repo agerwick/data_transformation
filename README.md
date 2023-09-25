@@ -195,6 +195,7 @@ The **"fields"** sections defines which fields are to be written to the output f
 ## graph section
 The optional graph sections defines graphs to produce. Here's an example:
 (in this example, the transform function returns metadata such as {"variable_substitution": {"date": "20230924"}}, which will be substituted in the filename and title)
+
     "graphs": [
         {
             "filename": "data/output/temperature_{date}.svg",

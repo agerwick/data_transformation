@@ -58,6 +58,7 @@ def split_name(input_data, input_section, output_fields):
                 Jane           Smith
                 Robert         Johnson
     """
+    NEEDS_RENEWAL
     input_section = check_data_source_and_entry(input_data, input_section)
     if not input_section:
         print("Exiting...")
@@ -143,6 +144,7 @@ def combine_name_to_first_last(input_data, input_fields, output_fields):
             | John Doe     |
             | Jane Smith   |
     """
+    NEEDS_RENEWAL
     input_section = check_data_source_and_entry(input_data, input_section)
     if not input_section:
         print("Exiting...")

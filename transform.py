@@ -4,7 +4,7 @@ import argparse
 import importlib
 import sys
 
-from func.shared import get_filenames, print_data_summary, check_data_source_and_entry
+from func.shared import get_filenames, print_data_summary, check_data_source_and_entry, split_data_and_metadata
 from func.input import get_input_data
 
 def main():
@@ -65,22 +65,23 @@ def main():
     for index, transformation in enumerate(transformations, start=1):
         # Take input and output fields from transform file and use them as arguments to the transformation function
         # This makes it possible to define all field names for both input and output files in the transform file
-        input_fields = transformation.get('input') or []
-        output_fields = transformation.get('output') or []
+        input_section = transformation.get('input') or []
+        output_section = transformation.get('output') or []
 
         if transformation['function'] in transform_functions:
             transform_function = transform_functions[transformation['function']]
         else:
             available_functions = '\n'.join(transform_functions.keys())
-            function_not_found_exception_message = \
-            f"Transformation function '{transformation['function']}' is not defined.\n"\
+            print(f"ERROR:\n"\
+            f"Transform function '{transformation['function']}' is not defined.\n"\
             f"You can define it by adding it in the import section of '{args.transform}'.\n"\
             f"These functions are then used in the transformations section.\n"\
-            f"Currently, the following functions have been defined:\n{available_functions}\n"
-            raise Exception(function_not_found_exception_message)
+            f"Currently, the following functions have been defined:\n{available_functions}\n")
+            sys.exit(1)
 
         # apply transform function to data to procude updated data
-        data, metadata = transform_function(data, input_fields, output_fields)
+        print(f"Executing transform function #{index} ({transformation['function']}):")
+        data, metadata = transform_function(data, input_section, output_section)
 
         # check for metadata returned by transform function
         if metadata:
@@ -109,14 +110,24 @@ def main():
         quiet=args.quiet
     )
 
+    # if a dataframe is returned, the output data is the result of an old-style transformation.
+    # the transformation function should have returned a dictionary with the output data and metadata
+    if type(data) == pd.DataFrame:
+        print("ERROR:\nThe transform function returned a dataframe. This means that it is an old-style transform function, and it needs to be updated to using the structure_dataframe() function.")
+        sys.exit(1)
+    elif type(data) != dict:
+        print("ERROR:\nThe transform function did not return a dictionary. This could mean the transform function is faulty. It may need to be updated to using the structure_dataframe() function.")
+        sys.exit(1)
+    elif 'data' not in data or 'metadata' not in data:
+        print("ERROR:\nThe transform function did not return a dictionary with 'data' and 'metadata' keys. This could mean the transform function is faulty. It may need to be updated to using the structure_dataframe() function.")
+        sys.exit(1)
+
     # if there's no data, don't write anything
     if not data:
-        if not args.quiet:
-            print("No data in output -- nothing will be written to output file(s)")
-        sys.exit(0)
+        print("ERROR:\nNo data in output -- nothing will be written to output file(s)")
+        sys.exit(1)
 
     output_section = transform_file.get('output')
-
     # sample output section:
     # [
     #     {
@@ -125,10 +136,8 @@ def main():
     #     }
     # write output file(s)
     for index, output_node in enumerate(output_section, start=0):
-        output_node = check_data_source_and_entry(data, output_node, section=f"output")
-        if not output_node:
-            print("Exiting...")
-            sys.exit(1)
+        output_data, output_metadata = split_data_and_metadata(data)
+        output_node = check_data_source_and_entry(output_data, output_node, section=f"output")
 
         data_source = output_node['data_source']
         data_entry = output_node['data_entry']
@@ -146,7 +155,7 @@ def main():
         if '*' in output_fields:
             # make a list of fields to add to the output
             fields_to_add = []
-            for field in data.get(data_source).get(data_entry).columns:
+            for field in output_data.get(data_source).get(data_entry).columns:
                 if field not in output_fields:
                     fields_to_add.append(field)
             # replace '*' with fields_to_add, in the position where '*' was 
@@ -159,19 +168,26 @@ def main():
                 if not args.quiet:
                     print(f"Warning: multiple instances of '*' found in output fields for output file #{index + 1}. Only the first instance will be used.")
         output_filename = output_filenames[index]
-        data_from_output_data_entry = data.get(data_source).get(data_entry)
-        #output_data_source = output.get('data_source')
-        #data_entries_from_output_data_source = data.get(output_data_source)
-        #data_from_output_data_entry = data_entries_from_output_data_source.get(output_data_entry)
+        data_from_output_data_entry = output_data.get(data_source).get(data_entry)
         if not args.quiet:
-            print(f"Writing to output file #{index + 1} Data source:{data_source}, Data entry:{data_entry} -- {len(data_from_output_data_entry)} rows\n  Columns: {list(output_fields)}")
+            print(f"Writing '{data_source}'/'{data_entry}' to output file #{index + 1} -- {len(data_from_output_data_entry)} rows\n  Columns: {list(output_fields)}")
         data_from_output_data_entry.to_csv(output_filename, columns=output_fields, index=False)
 
-    # check for graphs to generate
+    # Generate graphs, if any are defined in the transform file
     graphs = transform_file.get('graphs')
     if graphs:
+        # get ouput file names
+        graph_filenames = get_filenames(
+            getattr(args, "graph", False),
+            transform_file['graph'],
+            'graph', # this is used for error messages to make it clear what kind of files we are talking about
+            fail_if_not_defined_in_transform_file=True,
+            update_transform_file=True, # if the graph filenames from command line args are not defined in the transform file, add them to the transform file - this makes it easier to pick up the filenames from within the generate_graphs() function.
+            quiet=args.quiet
+        )
+
         from func.graph import generate_graphs
-        generate_graphs(graphs, data_from_output_data_entry, args.quiet)
+        generate_graphs(data, graphs, quiet=args.quiet)
 
 if __name__ == "__main__":
     main()

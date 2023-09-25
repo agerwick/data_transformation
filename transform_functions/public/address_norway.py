@@ -63,7 +63,7 @@ def split_address(input_data, input_section, output_fields):
             | Parkveien            | 45                   | Seksjon 1, Inng.A | 1337        | Sandvika |
             | Nedre Kirkegate      | 7B                   |                   | 5005        | Bergen   |
     """
-
+    NEEDS_RENEWAL
     input_section = check_data_source_and_entry(input_data, input_section)
     if not input_section:
         print("Exiting...")

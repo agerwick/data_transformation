@@ -1,64 +1,43 @@
 import pandas as pd
+from func.shared import check_data_source_and_entry, verify_data, split_data_and_metadata, structure_dataframe
 
-def extract_single_sheet(input_data, input_fields, output_fields):
-    # input data is a dictionary with the name of the sheet as key and the dataframe as value
-    # input fields look like this:
-    """
-    {
-        "sheet": "Sheet1",
-        "columns": ["Date", "Order Number", "Order Value"]
-    }
-    """
-    df = pd.DataFrame() # default return value
+def extract_single_sheet(input_data, input_section, output_section):
+    # ensure consistency of input data
+    existing_data, existing_metadata = split_data_and_metadata(verify_data(input_data))
+    # input_data is only used here and at the end, when merging with new_data.
+    # all other operations are done on existing_data, which keys are data_source names
 
-    # check if sheet name is specified in input fields
-    if "sheet" not in input_fields:
-        print("Sheet name not specified -- nothing will be returned")
-        print("You can define a sheet name in the transform file like this:")
-        print("""
-    "transformations": [
-        {
-            "function": "extract_single_sheet",
-            "input": {
-                "sheet": "Orders",
-                "columns": ["date", "order number", "order amount"]
-            },
-            "output": []
-        }
-    ],
-""")
-    else:
-        sheet_name = input_fields["sheet"]
-        # check if specified sheet name exists in the input data
-        if sheet_name not in input_data:
-            print(f"The sheet name specified in the transformations section of the transform file ({sheet_name}) does not exist in input data")
-            print("The input data has the following sheets:")
-            print(list(input_data.keys()))
+    # check the validify of the input section of the transform file
+    input_section = check_data_source_and_entry(existing_data, input_section)
+    # if the above didn't fail (which would have exited the program), then the input section is valid, and these are safe to use:
+    data_source = input_section['data_source']
+    data_entry = input_section['data_entry']
+    input_fields = input_section['fields']
+
+    # get the specified sheet from the spreadsheet file
+    new_data = existing_data.get(data_source).get(data_entry)
+
+    # check if columns are specified in input fields
+    if input_fields:
+        # check if specified columns exist in the sheet
+        missing_columns = [col for col in input_fields if col not in new_data.columns]
+        if len(missing_columns) > 0:
+            print(f"The following columns were specified in the transformations section of the transform file:")
+            print(f"  {input_fields}")
+            print(f"But the following columns do not exist in the sheet {data_source}:")
+            print(f"  {missing_columns}")
+            print("The sheet has the following columns:")
+            print(f"  {list(new_data.columns)}")
+            print("Nothing will be returned.")
+            new_data = pd.DataFrame() # return nothing
         else:
-            df = input_data[sheet_name]
-            # check if columns are specified in input fields
-            if "columns" in input_fields:
-                columns = input_fields["columns"]
-                # check if specified columns exist in the sheet
-                missing_columns = [col for col in columns if col not in df.columns]
-                if len(missing_columns) > 0:
-                    print(f"The following columns were specified in the transformations section of the transform file:")
-                    print(f"  {columns}")
-                    print(f"But the following columns do not exist in the sheet {sheet_name}:")
-                    print(f"  {missing_columns}")
-                    print("The sheet has the following columns:")
-                    print(f"  {list(df.columns)}")
-                    print("Nothing will be returned.")
-                    df = pd.DataFrame() # return nothing
-                else:
-                    # add the selected columns to the output data
-                    df = df[columns]
-            else:
-                # return all columns from the sheet
-                pass
+            # add the selected columns to the output data
+            new_data = new_data[input_fields]
+    else:
+        # return all columns from the sheet
+        pass
 
-    # instruct parent to delete all existing data in the output table before writing the new data returned from this function
-    # this is required as the input table is a dictionary with the name of the sheet as key and the dataframe as value, and merging this with the output data (which is a single dataframe) will fail, as well as being be pointless given that we're extracting some columns from a single sheet.
-    metadata = {"clear_input_data": True}
-
-    return df, metadata
+    metadata = {} # temporary, until metadata is in a separate key in data
+    new_metadata = {}
+    return structure_dataframe(new_data, new_metadata, {}), metadata
+    # by replacing input_data with {}, we are returning only the output data.

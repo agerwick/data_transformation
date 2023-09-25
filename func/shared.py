@@ -1,10 +1,13 @@
-from tabulate import tabulate
+import sys
+import inspect
 import pandas as pd
+from tabulate import tabulate
 
 def get_filenames(
         files_from_args, 
         files_from_transform_file, 
         file_type,
+        update_transform_file=False,
         fail_if_not_defined_in_transform_file=True, 
         quiet=False
     ):
@@ -95,7 +98,13 @@ def get_filenames(
                     files_from_transform_file.append({})
 
     for index, file_from_transform_file in enumerate(files_from_transform_file, start=0):
-        filename_from_transform_file = file_from_transform_file.get('filename')
+        if file_type == 'graph':
+            filename_from_transform_file = None
+            input_section_from_transform_file = file_from_transform_file.get('input')
+            if input_section_from_transform_file:
+                filename_from_transform_file = input_section_from_transform_file.get('filename')
+        else:
+            filename_from_transform_file = file_from_transform_file.get('filename')
         if index < len(files_from_args_list):
             filename_from_command_line = files_from_args_list[index]
             # replace empty string, space(s) or placeholder _ with None - filename from transform file will be used instead
@@ -137,6 +146,21 @@ def get_filenames(
                 print(f"{file_type.capitalize()} file #{index}: {filename_from_command_line} (from command line)")
             elif filename_from_transform_file:
                 print(f"{file_type.capitalize()} file #{index}: {filename_from_transform_file} (from transform file)")
+
+    # loop through all files from command line args and add them to the transform file if they don't exist
+    if update_transform_file:
+        for index, filename_from_command_line, filename_from_transform_file in filenames_for_error_message:
+            if filename_from_command_line and not filename_from_transform_file:
+                files_from_transform_file[index - 1]['filename'] = filename_from_command_line
+        # update the transform file with the new filenames
+        if file_type == 'graph':
+            for index, file_from_transform_file in enumerate(files_from_transform_file, start=0):
+                input_section_from_transform_file = file_from_transform_file.get('input')
+                if input_section_from_transform_file:
+                    input_section_from_transform_file['filename'] = file_from_transform_file['filename']
+        else:
+            for index, file_from_transform_file in enumerate(files_from_transform_file, start=0):
+                file_from_transform_file['filename'] = file_from_transform_file['filename']
 
     return filenames
 
@@ -217,31 +241,59 @@ def replace_placeholders(user_string, variable_substitutions):
         user_string = user_string.replace(placeholder, str(value))
     return user_string
 
-def print_data_summary(data):
-    # data is a dictionary of dictionaries, key: data_source, value: dict with key:  dataframe with data from that sheet (sheet name is "csv" if the file is a csv file)
-    # example:
-    # {
-    #     "input_1": {
-    #       "csv": <pandas dataframe>
-    #     },
-    #     "input_2": {
-    #       "csv": <pandas dataframe>
-    #     },
-    #     "input_3": {
-    #       "sheet1": <pandas dataframe>, 
-    #       "sheet2": <pandas dataframe>
-    #     }
-    # }
-
-    # loop through all data entries and print the sheet names, column names and number of rows
+def print_data_summary(input_data):
+    # data is a dictionary of dictionaries of dictionaries
+    """
+    {
+        "data": {
+            "input_1": {
+                "csv": <pandas dataframe>
+            },
+            "input_2": {
+                "csv": <pandas dataframe>
+            },
+            "input_3": {
+                "sheet1": <pandas dataframe>, 
+                "sheet2": <pandas dataframe>
+            }
+        },
+        "metadata": {
+            "input_1": {
+                "csv": {
+                    "filename": "data/sample/input/names_and_addresses.csv",
+                }
+            },
+            "input_2": {
+                "csv": {
+                    "filename": "data/sample/input/names_and_addresses.csv",
+                }
+            },
+            "input_3": {
+                "sheet1": {
+                    "filename": "data/sample/input/names_and_addresses.xlsx",
+                },
+                "sheet2": {
+                    "filename": "data/sample/input/names_and_addresses.xlsx",
+                }
+            }
+            "some_transform_function": {
+                "data": {
+                    "custom_metadata_from_transform_function": "some value"
+                }
+            },
+        }
+    }
+    """
+    data, metadata = split_data_and_metadata(input_data)
+    # loop through all data entries and print the data source/entry (file/sheet), column names and number of rows
     for data_source, data_entry_dict in data.items():
         for data_entry, dataframe in data_entry_dict.items():
             # number of columns in dataframe
-            print(f"Data source:'{data_source}', Data entry:'{data_entry}' (cols: {len(dataframe.columns)}, rows: {len(dataframe)})")
+            print(f"Data source/entry: '{data_source}'/'{data_entry}' (cols: {len(dataframe.columns)}, rows: {len(dataframe)})")
             print(f"  Columns: {list(dataframe.columns)}")
     print()
 
-def check_data_source_and_entry(data, input_fields, section="transformation"):
+def check_data_source_and_entry(data, input_config, section="transformation", exit_on_error=True):
     # data is a dictionary with key: data_source ("input1", ...) and value: another dictionary with key: data_entry (sheet_name from spreadsheet or "csv" for CSV files) and value: a dataframe with data from that sheet or CSV file
     # example:
     # {
@@ -260,10 +312,10 @@ def check_data_source_and_entry(data, input_fields, section="transformation"):
     #     "input_2": {
     #         "csv": <pandas dataframe>
     #     }
-    # ]
+    # }
     # The order in the numbering of data sources is the same as the order in which the files were specified in the transform file or command line argument.
 
-    # input_fields is either:
+    # input_config is either:
     # - a list of fields to be used by the transform function calling this routine
     #   (note that this only works if there's only one data source and one data entry in the data)
     # example: ["first_name", "last_name"]
@@ -276,90 +328,168 @@ def check_data_source_and_entry(data, input_fields, section="transformation"):
     #     "data_entry": "sheet1",
     #     "fields": ["first_name", "last_name"]
     # }
+    error=False
 
-    # if input_fields is a list, convert it to a dictionary
-    if type(input_fields) == list:
-        input_fields = {
-            "data_source": "input_1",
-            "data_entry": "csv",
-            "fields": input_fields
-        }
-    elif type(input_fields) != dict:
-        print(f"ERROR:\nThe {section} section must be a list or a dictionary. It is {type(input_fields)}. Here is a valid example:")
+    # if input_config is a list, convert it to a dictionary
+    if type(input_config) == list:
+        raise("This is wrong! The input_config should be a dictionary, not a list. Fix this!")
+        input_config = {
+            # "data_source": "input_1",
+            # "data_entry": "csv",
+            "fields": input_config
+        } # TODO: this should be removed, and the calling functions should be updated to use a dictionary instead of a list
+    elif type(input_config) != dict:
+        print(f"ERROR:\nThe {section} section must be a dictionary. It is {type(input_config)}. Here is a valid example config:")
         print(f"""
-        "{section}": {
+        "{section}": [
+            {
+                "input": {
+                    "data_source": "input_1",
+                    "data_entry": "csv",
+                    "fields": ["first_name", "last_name"]
+                }
+            }
+        ]
+        This function expects the "input" section of one of the dictionaries in the list as input, not the list itself, nor the whole section with other entries (like "output").
+        Basically this:
+        {
             "data_source": "input_1",
             "data_entry": "csv",
             "fields": ["first_name", "last_name"]
         }
         """)
-        print("Optionally, if you only have one data source and one data entry, you can use a list instead of a dictionary:")
-        print("""
-        "input": ["first_name", "last_name"]
-        """)
-        return None
+        error = True
     
-    # get data source and data entry from input_fields, if they exist
-    data_source = input_fields.get("data_source")
-    data_entry = input_fields.get("data_entry")
+    # get data source and data entry from input_config, if they exist
+    data_source = input_config.get("data_source")
+    data_entry = input_config.get("data_entry")
 
     # if data_source is not specified, check the data - if there's only one data source, use that. If not, print error and return None
     if not data_source:
         if len(data) == 1:
             data_source = list(data.keys())[0]
-            input_fields["data_source"] = data_source
-            print(f"Data source not specified for {section}, but there's only one data source in the data.")
-            print("Using data source '{data_source}'")
+            input_config["data_source"] = data_source
+            print(f"Data source not specified for {section}, but there's only one data source in the data: '{data_source}' -- using that")
         else:
-            print(f"ERROR:\nData source not specified for {section} and there's more than one data source in the data.")
+            print(f"ERROR:\nData source not specified for {section} and there are more than one data source in the data.")
             print(f"Available data sources: {list(data.keys())}")
-            print(f"Specify the data source in the {section} section of the transform file.")
-            return None
+            print(f"Specify the data source in the section for {section} in the transform file.")
+            error = True
     # if data_source is specified, check if it exists in the data - if not, print error and return None
     else:
         if not data_source in data:
             print(f"ERROR:\nData source '{data_source}' not found in data.")
             print(f"Available data sources: {list(data.keys())}")
-            return None
+            error = True
 
-    # if data_entry is not specified, check the data - if there's only one data entry, use that. If not, print error and return None
-    if not data_entry:
-        if len(data[data_source]) == 1:
-            data_entry = list(data[data_source].keys())[0]
-            input_fields["data_entry"] = data_entry
-            print(f"Data entry not specified for {section}, but there's only one data entry in data source '{data_source}'.")
-            print(f"Using data entry '{data_entry}'")
+    if not error:
+        # if data_entry is not specified, check the data - if there's only one data entry, use that. If not, print error and return None
+        if not data_entry:
+            if len(data[data_source]) == 1:
+                data_entry = list(data[data_source].keys())[0]
+                input_config["data_entry"] = data_entry
+                print(f"Data entry not specified for {section}, but there's only one data entry in data source '{data_source}': {data_entry}' -- using that")
+            else:
+                print(f"ERROR:\nData entry not specified for {section} and there are more than one data entry in data source '{data_source}'.")
+                print(f"Available data entries: {list(data[data_source].keys())}")
+                print(f"Specify the data entry in the section for {section} in the transform file.")
+                error = True
+        # if data_entry is specified, check if it exists in the data - if not, print error and return None
         else:
-            print(f"ERROR:\nData entry not specified for {section} and there's more than one data entry in data source '{data_source}'.")
-            print(f"Available data entries: {list(data[data_source].keys())}")
-            print(f"Specify the data entry in the {section} section of the transform file.")
-            return None
-    # if data_entry is specified, check if it exists in the data - if not, print error and return None
-    else:
-        if not data_entry in data[data_source]:
-            print(f"ERROR:\nData entry '{data_entry}' not found in data source '{data_source}'.")
-            print(f"Available data entries: {list(data[data_source].keys())}")
-            return None
+            if not data_entry in data[data_source]:
+                print(f"ERROR:\nData entry '{data_entry}' not found in data source '{data_source}'.")
+                print(f"Available data entries: {list(data[data_source].keys())}")
+                error = True
     
-    return input_fields
+    if error:
+        if exit_on_error:
+            print("Exiting...")
+            sys.exit(1)
+        else:
+            return None
+    else:
+        return input_config
 
 
-def structure_dataframe(new_data, existing_data={}, data_source=None, data_entry='data'):
-    # add the structure for the output data to make it compatible with the input data
-    import inspect
-    calling_function = inspect.stack()[1].function # grab name of the calling function
+# add the structure for the output data to make it compatible with the input data
+def structure_dataframe(new_data, new_metadata, existing_data, data_source=None, data_entry='data'):
+    existing_data = verify_data(existing_data, create_if_empty=True)
 
-    # if the data is not a dataframe, raise an exception as this is a developer error
+    # get calling function name to use as default data_source
+    this_function, calling_functions = get_calling_functions()
+    calling_function = calling_functions[0]
+
+    # if the new_data is not a dataframe, this is a developer error
     if type(new_data) != pd.DataFrame:
-        raise Exception(f"structure_dataframe() requires a pandas dataframe as input. However, this was given: {type(new_data)} (called from {calling_function})")
+        print(f"ERROR:\nstructure_dataframe() requires a pandas dataframe as input (first arg.).\n However, this was given: {type(new_data)} (called from {calling_functions})")
+        sys.exit(1)
+
+    # if the new_metadata is not a dictionary, this is a developer error
+    if type(new_metadata) != dict:
+        print(f"ERROR:\nstructure_dataframe() requires a dictionary as metadata. However, this was given: {type(new_metadata)} (called from {calling_functions})")
+        sys.exit(1)
 
     structured_data = {
-        data_source or calling_function: {
-            data_entry: new_data
-        }
+        "data": {
+            data_source or calling_function: {
+                data_entry: new_data
+            }
+        },
+        "metadata": new_metadata
     }
     
-    # add new data to existing data (or an empty dict if not supplied)
-    existing_data.update(structured_data)
+    # add new data to existing data
+    existing_data["data"].update(structured_data["data"])
+    existing_data["metadata"].update(structured_data["metadata"])
     return existing_data
 
+# this should always be run on input data to make sure it's in the correct format:
+def verify_data(data, create_if_empty=False):
+    if create_if_empty and (data == None or data == {}):
+        data = {
+            "data": {},
+            "metadata": {}
+        }
+    # if data is not a dictionary, or a non-empty dictionary and "data" and "metadata" keys don't exist, generate an error
+    if type(data) != dict or data != {} or (type(data) == dict and create_if_empty == False):
+        if type(data) != dict or (not "data" in data or not "metadata" in data):
+            print("ERROR:\nData is not in the expected format.")
+            print("Expected format: dictionary with keys: ['data', 'metadata'].")
+            print(f"Supplied data type: {type(data).__name__} {'with keys: '+str(list(data.keys())) if type(data) == dict else ''}")
+            this_function, calling_functions = get_calling_functions()
+            print(f"This function ({this_function}) was called from: {calling_functions}")
+            print("Exiting...")
+            sys.exit(1)
+    return data
+
+def split_data_and_metadata(data):
+    # if the data is a dictionary with keys called "data" and "metadata", split it into two dictionaries: data and metadata
+    # if not, print an error message and exit
+    if type(data) == dict and "data" in data and "metadata" in data:
+        return data["data"], data["metadata"]
+    else:
+        print("ERROR:\nData is not in the expected format.")
+        print("Expected format: dictionary with keys 'data' and 'metadata'.")
+        print(f"Supplied data type: {type(data).__name__} {'with keys: '+str(list(data.keys())) if type(data) == dict else ''}")
+        this_function, calling_functions = get_calling_functions()
+        print(f"This function ({this_function}) was called from: {calling_functions}")
+        print("Exiting...")
+        sys.exit(1)
+
+def get_calling_functions():
+    # get the names of all functions in the stack
+    stack = inspect.stack()
+    function_names = [f.function for f in stack]
+    # example: ['get_calling_functions', 'split_data_and_metadata', 'extract_single_sheet', 'main', '<module>', '_run_code', '_run_module_code', 'run_path', 'run_file', 'main', '<module>', '_run_code', '_run_module_as_main']
+    # remove all function names from and including the first instance of '<module>' to the end of the list
+    for index, function_name in enumerate(function_names):
+        if function_name == '<module>':
+            function_names = function_names[:index]
+            break
+    # remove the first function (which is this one)
+    function_names = function_names[1:]
+
+    # extract the first function name (the one that called this function) and the rest of the function names (the ones that called the function that called this function)
+    this_function = function_names[0]
+    calling_functions = function_names[1:] if len(function_names) > 1 else []
+    return this_function, calling_functions

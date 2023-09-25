@@ -38,6 +38,14 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
     # input_data is a dictionary with data_source ("input_1", "input_2"), etc as keys and the data_entry as values. 
     # The data_entry is a dictionary with sheet names as keys ("csv" for CSV files) and dataframes as values.
     for index, input_filename in enumerate(input_filenames, start=0):
+        # check if file exists, output error message and exit if it doesn't
+        try:
+            with open(input_filename) as f:
+                pass
+        except IOError:
+            print(f"ERROR:\nInput file '{input_filename}' not found - exiting...")
+            sys.exit(1)
+        
         # determine what type of file we are reading
         if input_filename.endswith('.csv'):
             # to make loading a csv compatible with loading a multi sheet spreadsheet, we load it into a dictionary with a single key 'csv'
@@ -123,9 +131,14 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
         # add the dictionary with data entries and dataframes to the input_data dictionary with data source ("input_1, ...") as keys
         input_data[f"input_{index + 1}"] = tmp_data
 
+    structured_data = {
+        "data": input_data,
+        "metadata": {}
+    }
+
     # print field names of input data
     if not quiet:
         print()
-        print_data_summary(input_data)
+        print_data_summary(structured_data)
 
-    return input_data
+    return structured_data
