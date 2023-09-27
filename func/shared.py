@@ -439,9 +439,20 @@ def structure_dataframe(new_data, new_metadata, existing_data, data_source=None,
     }
     
     # add new data to existing data
-    existing_data["data"].update(structured_data["data"])
-    existing_data["metadata"].update(structured_data["metadata"])
+    deep_update(existing_data, structured_data) # updates each key individually as not to overwrite anything that has been stored before.
+    # existing_data["data"].update(structured_data["data"])
+    # existing_data["metadata"].update(structured_data["metadata"])
     return existing_data
+
+
+def deep_update(existing_data, updated_data):
+    for key, val in updated_data.items():
+        if isinstance(val, dict):
+            existing_data[key] = deep_update(existing_data.get(key, {}), val)
+        else:
+            existing_data[key] = val
+    return existing_data
+
 
 # this should always be run on input data to make sure it's in the correct format:
 def verify_data(data, create_if_empty=False):

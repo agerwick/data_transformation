@@ -35,6 +35,8 @@ def generate_graphs(input_data, graph_settings, quiet=False):
         metadata_for_this_graph = ((existing_metadata.get(data_source) or {}).get(data_entry) or {})
         # needed to add the "or {}" to avoid an error when metadata_for_this_graph is None
 
+        # TODO: may need some magic to figure out which columns to use for x and y on the different plot series: define x and y in config with placeholder, then find two columns with the same value as in the placeholder
+
         variable_substitutions = metadata_for_this_graph.get('variable_substitution') or {}
         # example:
         # variable_substitutions = {"temperature": "25"}
@@ -43,6 +45,7 @@ def generate_graphs(input_data, graph_settings, quiet=False):
         # output: "Graph of something at 25 degrees Celsius"
 
         output_section = graph_setting.get("output") or {}
+        
         graph_filename = replace_placeholders(output_section.get("filename"), variable_substitutions)
         if not graph_filename:
             print(f"Filename not defined for graph #{graph_id} -- skipping graph generation")
