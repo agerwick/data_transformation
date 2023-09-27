@@ -12,7 +12,7 @@ def main():
     parser.add_argument('--input', help='Input CSV file(s), if not defined in transform file', required=False)
     parser.add_argument('--output', help='Output CSV file(s), if not defined in transform file', required=False)
     parser.add_argument('--graph', '--graphs', help='Output SVG/PNG file(s), overides filename defined in transform file', required=False)
-    parser.add_argument('--transform', help='Transform file in JSON format', required=False)
+    parser.add_argument('--transform', help='Transform file in JSON format', required=True)
     parser.add_argument('--quiet', '-q', help='Suppress output', action='store_true')
     args = parser.parse_args()
 
@@ -62,6 +62,7 @@ def main():
     # assign input data to output data so that we can keep passing output_data to the next transformation function
     # output_data = input_data
 
+    transformations = transformations or []
     # go through each transformation defined in the transform file (json) and apply the result to the output data
     for index, transformation in enumerate(transformations, start=1):
         # Take input and output fields from transform file and use them as arguments to the transformation function
