@@ -1,5 +1,19 @@
 This is where you place your own transform functions that are not supposed to be committed to the git repository.
 The directory is excluded in .gitignore .
 
+It is recommended that you place your transform functions in subdirectories to this directory, named after the company or project, for example "project_x".
+Let's say you have a file called special_transformations.py.
+In here you have defined a function called "extract_special_data".
+You can then import the transform functions by adding this 
+    "import": [
+        {
+            "module": "transform_functions.private.project_x.special_transformations",
+            "functions": ["extract_special_data"]
+        }
+    ]
+
+You can find a transform function template here:
+public/transform_function_template.py
+
 If you have a transform_function that could be useful for other people and you wish to share, add it to transform_functions/public and create a pull request on github:
 https://github.com/agerwick/data_transformation
