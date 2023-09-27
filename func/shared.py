@@ -225,7 +225,7 @@ def replace_placeholders(user_string, variable_substitutions):
     # example usage:
     # user_string = "The temperature is {temperature} degrees Celsius"
     # variable_substitutions = {"temperature": 25}
-    # print(__replace_placeholders(user_string, variable_substitutions))
+    # print(replace_placeholders(user_string, variable_substitutions))
     # output: The temperature is 25 degrees Celsius
 
     # If the user_string is not a string, return it as is
@@ -233,7 +233,7 @@ def replace_placeholders(user_string, variable_substitutions):
     if type(user_string) != str:
         return user_string
 
-    # Iterate through each replacement in the dictionary
+    # Iterate through each substitutions in the dictionary
     for key, value in variable_substitutions.items():
         # Define the placeholder to search for (e.g., {temperature})
         placeholder = f"{{{key}}}"
@@ -493,3 +493,55 @@ def get_calling_functions():
     this_function = function_names[0]
     calling_functions = function_names[1:] if len(function_names) > 1 else []
     return this_function, calling_functions
+
+def resource_name_match(template, target_str, resource_name, placeholder="{*}", match_if_template_is_none=False, quiet=False):
+    """
+    Check if a target string matches a template string with a placeholder, just a name, or a list of names.
+    input parameters:
+    - template (str/list): the template, which could be:
+        - a string
+        - a string with a placeholder
+        - a list of strings (no placeholders)
+    - target_str (str): the target string to check against the template
+    - resource_name (str): the name of the resource to check -- used in messages
+    """
+    if match_if_template_is_none and template == None:
+        match = True
+        return match
+    else:
+        match = False
+
+    # fail if target_str is not a string (as that would be a developer error)
+    if not isinstance(target_str, str):
+        raise TypeError(f"ERROR:\nThe given target_str '{str(target_str)}' is a of type '{type(target_str).__name__}', not a string.")
+
+    # fail if placeholder is not a string (as that would be a developer error)
+    if not isinstance(placeholder, str):
+        raise TypeError(f"ERROR:\nThe given placeholder '{str(target_str)}' is a of type '{type(target_str).__name__}', not a string.")
+
+    if type(template) == str:
+        # find out if the start and end of the template matches the start and end of the target_str (or the whole name if it doesn't have a place holder)
+        template_start = template.split("{*}")[0]
+        if "{*}" in template:
+            template_end = template.split("{*}")[1]
+        else:
+            template_end = ""
+        
+        if  target_str.startswith(template_start) \
+        and target_str.endswith(template_end):
+            print(f"{resource_name.capitalize()} '{target_str}' matches '{template}' -- using this") if not quiet else None
+            match = True
+        else:
+            print(f"{resource_name.capitalize()} '{target_str}' does not match '{template}' -- skipping") if not quiet else None
+    elif type(template) == list:
+        # list of input sources ['input_1', 'input_2', 'input_3']
+        if target_str in template:
+            print(f"{resource_name.capitalize()} '{target_str}' is in the list of input sources -- using this") if not quiet else None
+            match = True
+        else:
+            print(f"{resource_name.capitalize()} '{target_str}' is not in the list of input sources -- skipping") if not quiet else None
+    else:
+        print(f"ERROR:\nThe specified {resource_name} '{template}' is of type '{type(template)}', but it needs to be a string or a list -- skipping")
+        print(f"The content of '{template}' is: {str(template)}")
+
+    return match

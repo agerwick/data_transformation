@@ -11,7 +11,8 @@ def main():
     parser = argparse.ArgumentParser(description='Data Transformation')
     parser.add_argument('--input', help='Input CSV file(s), if not defined in transform file', required=False)
     parser.add_argument('--output', help='Output CSV file(s), if not defined in transform file', required=False)
-    parser.add_argument('--transform', help='Transform file in JSON format', required=True)
+    parser.add_argument('--graph', '--graphs', help='Output SVG/PNG file(s), overides filename defined in transform file', required=False)
+    parser.add_argument('--transform', help='Transform file in JSON format', required=False)
     parser.add_argument('--quiet', '-q', help='Suppress output', action='store_true')
     args = parser.parse_args()
 
@@ -177,14 +178,15 @@ def main():
     graphs = transform_file.get('graphs')
     if graphs:
         # get ouput file names
-        graph_filenames = get_filenames(
-            getattr(args, "graph", False),
-            transform_file['graph'],
+        graph_filename = get_filenames(
+            getattr(args, "graphs", False),
+            graphs,
             'graph', # this is used for error messages to make it clear what kind of files we are talking about
             fail_if_not_defined_in_transform_file=True,
             update_transform_file=True, # if the graph filenames from command line args are not defined in the transform file, add them to the transform file - this makes it easier to pick up the filenames from within the generate_graphs() function.
             quiet=args.quiet
         )
+        print(f"Writing graph to file: {graph_filename}")
 
         from func.graph import generate_graphs
         generate_graphs(data, graphs, quiet=args.quiet)
