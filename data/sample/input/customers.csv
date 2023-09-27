@@ -1,0 +1,11 @@
+customer_number,customer_name,street_address,postal_code,city,country,phone,email,discount_percent
+101,Sturla Sturlason,Kjøttkakeveien 1,0123,Oslo,Norway,12345678,sturla@example.com,30
+102,Gunhild Gunhildsdottir,Köttbullavägen 2,2345,Stockholm,Sweden,98765432,gunhild@example.com,0
+103,Björn Björnsson,Salmiakkikatu 3,3456,Helsinki,Finland,45678901,bjorn@example.com,15
+104,Gitte Gittesdatter,Flæskesteggade 4,4567,København,Denmark,78901234,gitte@example.com,20
+105,Þórgnýr Þórgnýrsson,Surströmminggata 5,5678,Reykjavik,Iceland,89012345,thorgnyr@example.com,25
+106,Lärka Lärkesdotter,Kanelbullegatan 6,6789,Gõteborg,Sweden,01234567,larka@example.com,0
+107,Mielikki Mielikkinen,Ruisleipäkatu 7,7890,Oulu,Finland,98765432,mielikki@example.com,10
+108,Gorm Gormsen,Rugbrødgade 8,8901,Århus,Denmark,45678901,gorm@example.com,15
+109,Sølvi Åse Lærdal,Lefseveien 9,9012,Bergen,Norway,78901234,solvi@example.com,20
+110,Erlend Erlendsson,Fikavägen 10,0123,Malmö,Sweden,89012345,erlend@example.com,0

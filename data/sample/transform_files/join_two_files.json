@@ -24,7 +24,7 @@
     ],
     "output": [
         {
-            "filename": "data/sample/output/cutomer_id_names_addresses.csv",
+            "filename": "data/sample/output/customer_id_names_addresses.csv",
             "data_source": "merge_by_column",
             "data_entry": "data",
             "fields": ["customer_id", "customer_id2", "*"]
