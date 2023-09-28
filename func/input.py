@@ -1,6 +1,6 @@
 import sys
 import pandas as pd
-from func.shared import get_filenames, print_data_summary
+from func.shared import get_filenames, print_data_summary, resource_name_match
 
 def get_input_data(input_files_from_args, transform_file_input_section, quiet=False):
     """ 
@@ -33,7 +33,6 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
     # all of the above return lists in the same order as the input files so it can be easily accessed with the index, and if a value is not defined for a specific input file, the corresponding list element is None
 
     # read input
-    input_fields_per_file = []
     input_data = {}
     # input_data is a dictionary with data_source ("input_1", "input_2"), etc as keys and the data_entry as values. 
     # The data_entry is a dictionary with sheet names as keys ("csv" for CSV files) and dataframes as values.
@@ -50,6 +49,7 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
         if input_filename.endswith('.csv'):
             # to make loading a csv compatible with loading a multi sheet spreadsheet, we load it into a dictionary with a single key 'csv'
             tmp_data = {"csv": pd.read_csv(input_filename)}
+            # TODO: support custom data_entry names for CSV files to replace "csv"
         # check if input file is a spreadsheet ('.ods', '.xlsx', '.xls')
         elif input_filename.endswith('.ods') or input_filename.endswith('.xlsx') or input_filename.endswith('.xls'):
             if not quiet:
@@ -74,14 +74,33 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
                 sys.stdout.flush()
                 tmp_data = {}
                 # loop through all the specified sheets, or if none are specified, all sheets in the spreadsheet
-                for sheet_name in transform_file_sheet_names[index] or spreadsheet.sheet_names:
+                for sheet_name_tmp in transform_file_sheet_names[index] or spreadsheet.sheet_names:
+                    if type(sheet_name_tmp) is dict:
+                        # example: "input": [
+                        #   { "sheets": [{"Sheet_{*}_data": "Data"}] }
+                        # ]
+                        sheet_name = list(sheet_name_tmp.keys())[0] # "Sheet_{*}_data"
+                        rename_to_sheet_name = sheet_name_tmp[sheet_name] # "Data"
+                    elif type(sheet_name_tmp) is str:
+                        # example: "input": [
+                        #   { "sheets": ["Sheet_1_data"] }
+                        # ]
+                        sheet_name = sheet_name_tmp
+                        rename_to_sheet_name = False
+                    else:
+                        print(f"ERROR:\nSheet name in transform file must be a string or a dictionary - exiting...")
+                        sys.exit(1)
+
                     if not quiet:
-                        print(f"Reading sheet {sheet_name}")
+                        print(f"Reading sheet '{sheet_name}")
                         sys.stdout.flush()
-                    if not sheet_name in spreadsheet.sheet_names:
+                    # we must assign the output from resource_name_match, as this will be the matched sheet name in case the given sheet_name is a template ("Sheet_{*}")
+                    actual_sheet_name = resource_name_match(sheet_name, spreadsheet.sheet_names, "sheet name") # "Sheet_1_data", the name of the sheet in the spreadsheet, not the template
+                    if not actual_sheet_name:
                         print(f"ERROR:\nSheet '{sheet_name}' not found in spreadsheet - exiting...")
                         sys.exit(1)
-                    tmp_data[sheet_name] = pd.read_excel(input_filename, sheet_name=sheet_name)
+                    tmp_data[rename_to_sheet_name or actual_sheet_name] = pd.read_excel(input_filename, sheet_name=actual_sheet_name)
+                    # if sheet-name from input[].sheets list contains a dictionary, the key is the sheet name in the spreadsheet (or a template with placeholder), and the value is the name we want to use for the sheet when passing to the transform function
         else:
             print(f"ERROR:\nUnsupported input file type: {input_filename} - exiting...")
             sys.exit(1)

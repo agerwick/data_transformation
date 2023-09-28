@@ -505,7 +505,7 @@ def get_calling_functions():
     calling_functions = function_names[1:] if len(function_names) > 1 else []
     return this_function, calling_functions
 
-def resource_name_match(template, target_str, resource_name, placeholder="{*}", match_if_template_is_none=False, quiet=False):
+def resource_name_match(template, target_list, resource_name, placeholder="{*}", match_if_template_is_none=False, quiet=False):
     """
     Check if a target string matches a template string with a placeholder, just a name, or a list of names.
     input parameters:
@@ -513,46 +513,54 @@ def resource_name_match(template, target_str, resource_name, placeholder="{*}", 
         - a string
         - a string with a placeholder
         - a list of strings (no placeholders)
-    - target_str (str): the target string to check against the template
+    - target_list (list/str): the target strings to check against the template (a list of strings or a single string)
     - resource_name (str): the name of the resource to check -- used in messages
     """
+    match = False
     if match_if_template_is_none and template == None:
         match = True
         return match
-    else:
-        match = False
 
-    # fail if target_str is not a string (as that would be a developer error)
-    if not isinstance(target_str, str):
-        raise TypeError(f"ERROR:\nThe given target_str '{str(target_str)}' is a of type '{type(target_str).__name__}', not a string.")
+    # if target_str is a string, convert it to a list of one string
+    if isinstance(target_list, str):
+        target_list = [target_list]
+
+    # fail if target_str is not a list of strings (as that would be a developer error)
+    if isinstance(target_list, list) and not all(isinstance(item, str) for item in target_list):
+        raise TypeError(f"ERROR:\nThe given target '{str(target_list)}' is a of type '{type(target_list).__name__}'.\nIt needs to be either a string or a list of string.")
 
     # fail if placeholder is not a string (as that would be a developer error)
     if not isinstance(placeholder, str):
         raise TypeError(f"ERROR:\nThe given placeholder '{str(target_str)}' is a of type '{type(target_str).__name__}', not a string.")
 
-    if type(template) == str:
-        # find out if the start and end of the template matches the start and end of the target_str (or the whole name if it doesn't have a place holder)
-        template_start = template.split("{*}")[0]
-        if "{*}" in template:
-            template_end = template.split("{*}")[1]
-        else:
-            template_end = ""
-        
-        if  target_str.startswith(template_start) \
-        and target_str.endswith(template_end):
-            print(f"{resource_name.capitalize()} '{target_str}' matches '{template}' -- using this") if not quiet else None
-            match = True
-        else:
-            print(f"{resource_name.capitalize()} '{target_str}' does not match '{template}' -- skipping") if not quiet else None
-    elif type(template) == list:
-        # list of input sources ['input_1', 'input_2', 'input_3']
-        if target_str in template:
-            print(f"{resource_name.capitalize()} '{target_str}' is in the list of input sources -- using this") if not quiet else None
-            match = True
-        else:
-            print(f"{resource_name.capitalize()} '{target_str}' is not in the list of input sources -- skipping") if not quiet else None
-    else:
+    if type(template) != str and type(template) != list:
         print(f"ERROR:\nThe specified {resource_name} '{template}' is of type '{type(template)}', but it needs to be a string or a list -- skipping")
         print(f"The content of '{template}' is: {str(template)}")
+
+    # loop through target_str and check if any of them match the template
+    for target_str in target_list:
+        if type(template) == str:
+            # find out if the start and end of the template matches the start and end of the target_str (or the whole name if it doesn't have a place holder)
+            template_start = template.split("{*}")[0]
+            if "{*}" in template:
+                template_end = template.split("{*}")[1]
+            else:
+                template_end = ""
+
+            if  target_str.startswith(template_start) \
+            and target_str.endswith(template_end):
+                print(f"{resource_name.capitalize()} '{target_str}' matches '{template}' -- using this") if not quiet else None
+                match = target_str
+                break # leave loop at first match
+            else:
+                print(f"{resource_name.capitalize()} '{target_str}' does not match '{template}' -- skipping") if not quiet else None
+        elif type(template) == list:
+            # list of input sources ['input_1', 'input_2', 'input_3']
+            if target_str in template:
+                print(f"{resource_name.capitalize()} '{target_str}' is in the list '{template}' -- using this") if not quiet else None
+                match = target_str
+                break # leave loop at first match
+            else:
+                print(f"{resource_name.capitalize()} '{target_str}' is not in the list '{template}' -- skipping") if not quiet else None
 
     return match
