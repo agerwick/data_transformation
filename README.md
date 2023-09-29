@@ -125,13 +125,18 @@ In this example, a filename is specified for input file #2. It will be used unle
         }
     ]
 In this example, if the input file contains a fields called "customer_id" and "name", they will be renamed to "original_customer_id_from_legacy_software" and "original_name_from_legacy_software", respectively.
+Additionally, three columns will be added containing file name, directory name (one level as specified) as well as those two combined.
 
     "input": [
         {
             "filename": "data/sample/input/customer_numbers.csv",
             "field_prefix": "original",
             "field_suffix": "from_legacy_software"
-        }
+        },
+        "file_name_column": "File",
+        "dir_name_column": "Directory",
+        "dir_and_file_name_column": "Dir/File",
+        "dir_levels_to_include": 1
     ]
 In this example, if the input file contains a field name called "customer_id", it will be renamed to "customer_id2". If the field doesn't exist, nothing will happen.
 

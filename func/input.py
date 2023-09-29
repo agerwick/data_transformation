@@ -1,4 +1,5 @@
 import sys
+import os
 import pandas as pd
 from func.shared import get_filenames, print_data_summary, resource_name_match
 
@@ -26,6 +27,11 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
     field_prefixes = [input_file.get("field_prefix") for input_file in transform_file_input_section]
     field_suffixes = [input_file.get("field_suffix") for input_file in transform_file_input_section]
     rename_fields = [input_file.get("rename_fields") for input_file in transform_file_input_section]
+    file_name_column = [input_file.get('file_name_column') for input_file in transform_file_input_section]
+    dir_name_column = [input_file.get('dir_name_column') for input_file in transform_file_input_section]
+    dir_and_file_name_column = [input_file.get('dir_and_file_name_column') for input_file in transform_file_input_section]
+    dir_levels_to_include = [input_file.get('dir_levels_to_include') for input_file in transform_file_input_section]
+    # TODO: add support for file and dir name columns on a per data_entry (sheet) basis (currently it's only supported on a per input file basis, so it will add on all sheets. This is not a problem for CSV files, but it is for spreadsheets with multiple sheets)
 
     # get spreadsheet sheet names (if any)
     transform_file_sheet_names = [input_file.get("sheets") for input_file in transform_file_input_section]
@@ -44,7 +50,14 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
         except IOError:
             print(f"ERROR:\nInput file '{input_filename}' not found - exiting...")
             sys.exit(1)
-        
+
+        # get file name and directory name for use in dataframes if specified
+        file_name_for_data = os.path.basename(input_filename)
+        dir_name_for_data = os.path.dirname(input_filename)
+        if dir_levels_to_include and dir_levels_to_include[index]:
+            dir_name_for_data = os.path.join(*dir_name_for_data.split(os.sep)[-dir_levels_to_include[index]:])
+        dir_and_file_name_for_data = os.path.join(dir_name_for_data, file_name_for_data)
+
         # determine what type of file we are reading
         if input_filename.endswith('.csv'):
             # to make loading a csv compatible with loading a multi sheet spreadsheet, we load it into a dictionary with a single key 'csv'
@@ -104,6 +117,16 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
         else:
             print(f"ERROR:\nUnsupported input file type: {input_filename} - exiting...")
             sys.exit(1)
+
+        if file_name_column and file_name_column[index]:
+            for data_entry in tmp_data.keys():
+                tmp_data[data_entry].insert(0, file_name_column[index], file_name_for_data)
+        if dir_name_column and dir_name_column[index]:
+            for data_entry in tmp_data.keys():
+                tmp_data[data_entry].insert(0, dir_name_column[index], dir_name_for_data)
+        if dir_and_file_name_column and dir_and_file_name_column[index]:
+            for data_entry in tmp_data.keys():
+                tmp_data[data_entry].insert(0, dir_and_file_name_column[index], dir_and_file_name_for_data)
 
         # field renaming (prefixing, suffixing, renaming) which is mostly used for CSV files
         field_prefix = field_suffix = rename_field = None
