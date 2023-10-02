@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 import pandas as pd
 from func.shared import get_filenames, print_data_summary, resource_name_match
 
@@ -40,9 +41,12 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
 
     # read input
     input_data = {}
+    input_file_metadata = {}
     # input_data is a dictionary with data_source ("input_1", "input_2"), etc as keys and the data_entry as values. 
     # The data_entry is a dictionary with sheet names as keys ("csv" for CSV files) and dataframes as values.
     for index, input_filename in enumerate(input_filenames, start=0):
+        data_source = f"input_{index + 1}"
+
         # check if file exists, output error message and exit if it doesn't
         try:
             with open(input_filename) as f:
@@ -57,6 +61,22 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
         if dir_levels_to_include and dir_levels_to_include[index]:
             dir_name_for_data = os.path.join(*dir_name_for_data.split(os.sep)[-dir_levels_to_include[index]:])
         dir_and_file_name_for_data = os.path.join(dir_name_for_data, file_name_for_data)
+
+        # load input file metadata (if any)
+        # look for a filename with the same filename but with additional extension ".meta.json" and load the metadata from that file:
+        # example: if input file is "data.csv", look for "data.meta.json"
+        # if the metadata file doesn't exist, the metadata will be an empty dictionary
+        input_file_metadata_tmp = {} # reset so that we don't accidentally use metadata from a previous file
+        input_file_metadata_filename = input_filename + ".meta.json"
+        if os.path.isfile(input_file_metadata_filename):
+            try:
+                with open(input_file_metadata_filename, 'r') as f:
+                    input_file_metadata_tmp = json.load(f)
+            except:
+                print(f"\nERROR:\nInput file metadata '{input_file_metadata_filename}' could not be loaded:\n{sys.exc_info()[1]}\n-- continuing...\n")
+        if input_file_metadata_tmp:
+            # add the data source as a key to the metadata dictionary
+            input_file_metadata[data_source] = input_file_metadata_tmp
 
         # determine what type of file we are reading
         if input_filename.endswith('.csv'):
@@ -171,7 +191,12 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
                 # renaming fields has only been useful for single sheet spreadsheets or CSV files, so it's not a big problem that it's not implemented for multi sheet spreadsheets yet
 
         # add the dictionary with data entries and dataframes to the input_data dictionary with data source ("input_1, ...") as keys
-        input_data[f"input_{index + 1}"] = tmp_data
+        input_data[data_source] = tmp_data
+
+    # end of: for index, input_filename in enumerate(input_filenames, start=0):
+
+    # check metadata for actions that should be performed on the input data
+    input_data = process_input_metadata(input_data, input_file_metadata)
 
     structured_data = {
         "data": input_data,
@@ -184,3 +209,98 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
         print_data_summary(structured_data)
 
     return structured_data
+
+def process_input_metadata(input_data, input_file_metadata):
+    """
+    example input_file_metadata:
+    
+    As specified in filename.meta.json: 
+    {
+        "csv": {
+            "find_records": {
+                "criteria": {
+                    "Status": "Inactive",
+                    "Preserve": "False"
+                },
+                "action": {
+                    "update_records": {
+                        "Reason to Delete": "Inactive Records"
+                    }
+                }
+            },
+            "find_records": {
+                "criteria": {
+                    "record_id": "123"
+                },
+                "action": {
+                    "delete_records": "True"
+                }
+            }
+        }
+    }
+
+    this is what this function gets (after loading the json file and adding the input file name as a key):
+    {
+        "input_1": {
+            "csv": {
+                "add_column": {
+                    "Reason to Delete": ""
+                },
+                "find_records": {
+                    "criteria": {
+                        "Status": "Inactive",
+                        "Preserve": "False"
+                    },
+                    "action": {
+                        "update_records": {
+                            "Reason to Delete": "Inactive Records"
+                        }
+                    }
+                },
+                "find_records": {
+                    "criteria": {
+                        "record_id": "123"
+                    },
+                    "action": {
+                        "delete_records": "True"
+                    }
+                }
+            }
+        }
+    }
+    """
+    # this will
+    # - add a new column called "Reason to Delete" to all records and make the default value an empty string
+    # - find all records status is inactive and preserve is false
+    #   - update the Reason to Delete field to "Inactive Records"
+    # - find all records where record_id is 123
+    #   - delete them
+    # for now, we can only do exact matches, but we could add support for regex, <, >, etc. later
+    if input_file_metadata:
+        for data_source, data_entries in input_file_metadata.items(): # "input1", {"csv": ...}
+            for data_entry, tmp_metadata in data_entries.items(): # "csv", {"find_records": ...}
+                for metadata_entry, metadata_info in tmp_metadata.items(): # "find_records", {"criteria": ..., "action": ...}
+                    if metadata_entry == "add_column":
+                        for field_name, field_value in metadata_info.items():
+                            input_data[data_source][data_entry][field_name] = field_value
+                    if metadata_entry == "find_records":
+                        message_printed = False
+                        criteria = metadata_info.get("criteria") # {"record_id": "123"}
+                        action_dict = metadata_info.get("action") # {"delete_records": "True"}
+                        # if all field names and field values match, delete the record
+                        for field_name, field_value in criteria.items(): # "record_id", "123"
+                            matching_records = input_data[data_source][data_entry][field_name].isin([field_value])
+                            # TODO: Support multiple criteria
+                            if matching_records.any():
+                                if not message_printed: # only print this once per data entry
+                                    print(f"InputFilter: found records matching {criteria} in data entry '{data_entry}' in data source '{data_source}' -- action: {action_dict}")
+                                    message_printed = True
+                                for action, action_info in action_dict.items():
+                                    if action == "update_records":
+                                        # update all records that match the criteria
+                                        for field_name, field_value in action_info.items():
+                                            input_data[data_source][data_entry].loc[matching_records, field_name] = field_value
+                                    elif action == "delete_records":
+                                        # delete all records that match the criteria
+                                        input_data[data_source][data_entry] = input_data[data_source][data_entry][~matching_records] # keep non-matching records
+    return input_data

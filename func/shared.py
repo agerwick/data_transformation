@@ -388,7 +388,7 @@ def check_data_source_and_entry(data, input_config, section="transformation", ex
             if len(data[data_source]) == 1:
                 data_entry = list(data[data_source].keys())[0]
                 input_config["data_entry"] = data_entry
-                print(f"Data entry not specified for {section}, but there's only one data entry in data source '{data_source}': {data_entry}' -- using that")
+                print(f"Data entry not specified for {section}, but there's only one data entry in data source '{data_source}': '{data_entry}' -- using that")
             else:
                 print(f"ERROR:\nData entry not specified for {section} and there are more than one data entry in data source '{data_source}'.")
                 print(f"Available data entries: {list(data[data_source].keys())}")
