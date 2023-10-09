@@ -1,3 +1,4 @@
+import os
 import sys
 import inspect
 import pandas as pd
@@ -444,7 +445,7 @@ def structure_dataframe(new_data, new_metadata, existing_data, data_source=None,
     # existing_data["metadata"].update(structured_data["metadata"])
     return existing_data
 
-
+# update individual keys in a dictionary, even if the key is nested in another dictionary
 def deep_update(existing_data, updated_data):
     for key, val in updated_data.items():
         if isinstance(val, dict):
@@ -564,3 +565,108 @@ def resource_name_match(template, target_list, resource_name, placeholder="{*}",
                 print(f"{resource_name.capitalize()} '{target_str}' is not in the list '{template}' -- skipping") if not quiet else None
 
     return match
+
+def function_already_in_stack_trace(qty):
+    import inspect
+    # find the name of the function that called this function
+    stack = inspect.stack()
+    function_names = [f.function for f in stack]
+    calling_function = function_names[1]
+    # check if the calling function is in the stack trace more than once
+    if function_names.count(calling_function) > qty:
+        return True
+    else:
+        return False
+
+def stack_trace():
+    main_script_path = os.path.dirname(os.path.abspath(sys.argv[0]))
+    import inspect
+    # find the name, line number and file name of the function that called this function, the function above that, all the way down to __main__
+    stack = inspect.stack()
+    stack_trace = []
+    for stack_item in stack:
+        # skip this function
+        if stack_item.function == 'stack_trace':
+            continue
+        stack_trace.append(f"{stack_item.function} (line {stack_item.lineno} in {get_relative_path(stack_item.filename, main_script_path)})")
+    return stack_trace
+ 
+def get_variable_name(var):
+    frame = inspect.currentframe()
+    result = None
+    try:
+        for name, value in frame.f_back.f_locals.items():
+            if value is var:
+                result = name
+                break
+    finally:
+        del frame
+    return result
+
+def get_relative_path(path_name, root_path):
+    if path_name.startswith(root_path):
+        relative_path = os.path.relpath(path_name, root_path)
+        return relative_path
+    else:
+        return path_name
+
+def process_metadata(data):
+    import json
+    # if the data is a dictionary with keys called "data" and "metadata", split it into two dictionaries: data and metadata
+    # if not, print an error message and exit
+    if type(data) == dict and "data" in data and "metadata" in data:
+        metadata = data["metadata"]
+        input_filenames = metadata.get("input_filenames")
+        # loop through all metadata entries and process them
+        for metadata_type in metadata:
+            if metadata_type == "add_to_parent_directory":
+                """ This is the data we can expect:
+                {
+                    'add_to_parent_directory': {
+                        'input_2': {'csv': {'add_column': {'New_Col_Name': "data_for_all_rows"}}}, 
+                        'input_9': {'csv': {'add_column': {'Another_Col_Name': "other_data"}}}
+                    }
+                }
+                """
+                data_sources = metadata[metadata_type] # the value of "add_to_parent_directory"
+                for data_source, data_entries in data_sources.items(): 
+                    output_metadata = {}
+                    # "input_2" or "input_9", "csv"
+                    # find the data source filename
+                    data_source_filename = input_filenames.get(data_source)
+                    for data_entry, metadata_keys in data_entries.items(): 
+                        if output_metadata.get(data_entry) == None:
+                            output_metadata[data_entry] = {}
+                        # "csv", "add_column"
+                        # just iterate through all data entries
+                        for metadata_key, metadata_val in metadata_keys.items():
+                            if output_metadata[data_entry].get(metadata_key) == None:
+                                output_metadata[data_entry][metadata_key] = []
+                            # "add_column", {'New_Col_Name': "data_for_all_rows"}
+                            # make a list with metadata_key as the key and metadata_val as the value
+                            for col_name, col_data in metadata_val.items():
+                                output_metadata[data_entry][metadata_key].append({col_name: col_data})
+                    # write to the json file
+                    print(f"Writing metadata to {data_source_filename}")
+                    print(output_metadata)
+                    print()
+                    if data_source_filename:
+                        json_filename = os.path.join(os.path.dirname(data_source_filename), "../metadata.json")
+                        with open(json_filename, 'w') as outfile:
+                            json.dump(output_metadata, outfile, indent=4)
+                    else:
+                        print(f"ERROR (process_metadata):\nCould not find the input filename for data source {data_source}.")
+                        sys.exit(1) # this is likely a developer error (someone messed up the metadata somewhere along the way)                   
+    else:
+        print("ERROR (process_metadata):\nData is not in the expected format.")
+
+def data_is_empty(structured_data):
+    dfs_with_data = 0
+    data = structured_data.get("data")
+    if data:
+        for data_source, data_entries in data.items():
+            for data_entry, dataframe in data_entries.items():
+                if dataframe.shape[0] > 0: # if the dataframe has more than 0 rows
+                    dfs_with_data += 1
+    return dfs_with_data == 0
+    
