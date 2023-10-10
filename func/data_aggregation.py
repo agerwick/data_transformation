@@ -187,6 +187,15 @@ def get_subgroup(aggregated_data, key=(), sort=False, isolate_subgroup=False, un
 def get_subgroup_dict(aggregated_data, key=(), sort=False):
     return get_subgroup(aggregated_data, key=key, sort=sort, isolate_subgroup=False, unwrap=True)
 
+def get_subgroup_max_value(counts):
+    """ return the key and value for the entry with the highest count for each step """
+    # example input: {(4, 0.5): 24, (6, 0.5): 1446, (6, 0.4): 1, (6, 0.33): 7, (6, 0.2): 2, (8, 0.5): 1443, (10, 0.5): 1436, (10, 0.33): 3, (10, 0.2): 1, (13, 0.5): 3267, (15, 0.5): 2031, (15, 0.4): 182, (15, 0.33): 519, (15, 0.2): 54, (15, 0.1): 19, (20, 0.5): 1170}
+    # example output: {4: 0.5, 6: 0.5, 8: 0.5, 10: 0.5, 13: 0.5, 15: 0.5, 20: 0.5}
+    subgroups = {step_num: c_rates for step_num, c_rates in get_subgroup_dict(counts).items()}
+    return {group_key: max(keys, key=keys.get) for group_key, keys in subgroups.items()}
+    # return {group_key: get_max({tuple([key]): value})["key"] for group_key, keys in subgroups.items() for key, value in keys.items()} # this did not return the highest value
+
+
 """
 a = {(1, 0.33): 6, (2, 0.33): 1, (3, 2): 13, (0, 0.2): 100, (1, 0.5): 2, (1, 1): 7}
 # example of get_aggregated_subgroup:

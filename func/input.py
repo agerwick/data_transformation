@@ -2,7 +2,7 @@ import sys
 import os
 import json
 import pandas as pd
-from func.shared import get_filenames, print_data_summary, resource_name_match
+from func.shared import get_filenames, deep_update, print_data_summary, resource_name_match
 
 def get_input_data(input_files_from_args, transform_file_input_section, quiet=False):
     """ 
@@ -66,23 +66,29 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
         # look for a filename with the same filename but with additional extension ".meta.json" and load the metadata from that file:
         # example: if input file is "data.csv", look for "data.meta.json"
         # if the metadata file doesn't exist, the metadata will be an empty dictionary
-        input_file_metadata_filenames = [
-            input_filename + ".meta.json", # per file metadata
-            os.path.join(os.path.dirname(input_filename), "/../metadata.json") # metadata for all files in directories below the parent of this file's directory (if this file is a/b/c/data.csv, look for a/metadata.json)
-        ]
-        for input_file_metadata_filename in input_file_metadata_filenames:
+
+        metadata_filenames = []
+        # is this file is a/b/c/data.csv, look for a/metadata.json
+        metadata_filenames.append(os.path.abspath(os.path.join(os.path.dirname(input_filename), "../../metadata.json")))
+        # is this file is a/b/c/data.csv, look for a/b/metadata.json
+        metadata_filenames.append(os.path.abspath(os.path.join(os.path.dirname(input_filename), "../metadata.json")))
+        # is this file is a/b/c/data.csv, look for a/b/c/metadata.json
+        metadata_filenames.append(os.path.abspath(os.path.join(os.path.dirname(input_filename), "metadata.json")))
+        metadata_filenames.append(input_filename + ".meta.json") # per file metadata
+
+        for metadata_filename in metadata_filenames:
             input_file_metadata_tmp = {} # reset so that we don't accidentally use metadata from a previous file
-            if os.path.isfile(input_file_metadata_filename):
+            if os.path.isfile(metadata_filename):
                 try:
-                    with open(input_file_metadata_filename, 'r') as f:
+                    with open(metadata_filename, 'r') as f:
                         input_file_metadata_tmp = json.load(f)
                 except:
-                    print(f"\nERROR:\nInput file metadata '{input_file_metadata_filename}' could not be loaded:\n{sys.exc_info()[1]}\n-- continuing...\n")
+                    print(f"\nERROR:\nInput file metadata '{metadata_filename}' could not be loaded:\n{sys.exc_info()[1]}\n-- continuing...\n")
             if input_file_metadata_tmp:
-                print(f"Loading metadata from '{input_file_metadata_filename}'")
+                print(f"Loading metadata from '{metadata_filename}'")
                 print(f"Metadata: {input_file_metadata_tmp}")
                 # add the data source as a key to the metadata dictionary
-                input_file_metadata[data_source] = input_file_metadata_tmp
+                input_file_metadata[data_source] = deep_update(input_file_metadata.get(data_source) or {}, input_file_metadata_tmp)
 
         # determine what type of file we are reading
         if input_filename.endswith('.csv'):
@@ -292,9 +298,12 @@ def process_input_metadata(input_data, input_file_metadata):
             for data_entry, tmp_metadata in data_entries.items(): # "csv", {"find_records": ...}
                 for metadata_entry, metadata_info in tmp_metadata.items(): # "find_records", {"criteria": ..., "action": ...}
                     if metadata_entry == "add_column":
-                        for field_name, field_value in metadata_info.items():
-                            input_data[data_source][data_entry][field_name] = field_value
-                            print(f"process_input_metadata: added column '{field_name}'='{field_value}' to '{data_source}'/'{data_entry}'")
+                        if type(metadata_info) is dict:
+                            metadata_info = [metadata_info] # convert to list if it's a dict
+                        for metadata_info_dict in metadata_info:
+                            for field_name, field_value in metadata_info_dict.items():
+                                input_data[data_source][data_entry][field_name] = field_value
+                                print(f"process_input_metadata: added column '{field_name}'='{field_value}' to '{data_source}'/'{data_entry}'")
                     elif metadata_entry == "find_records":
                         message_printed = False
                         criteria = metadata_info.get("criteria") # {"record_id": "123"}

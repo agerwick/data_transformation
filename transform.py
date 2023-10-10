@@ -88,7 +88,7 @@ def main():
         # check for legacy_metadata_dont_use returned by transform function
         if legacy_metadata_dont_use:
             if not args.quiet:
-                print(f"legacy_metadata_dont_use returned by transform function #{index} ({transformation['function']}): {legacy_metadata_dont_use}")
+                print(f"legacy_metadata returned by transform function #{index} ({transformation['function']}): {legacy_metadata_dont_use}")
 
         if not args.quiet:
             print(f"\nOutput fields produced by transform function #{index} ({transformation['function']}):")
@@ -130,7 +130,7 @@ def main():
     # if there's no data, don't write anything
     if data_is_empty(data):
         print("WARNING:\nNo data in output -- nothing will be written to output file(s)\n")
-        #sys.exit(1) # don't exit, as this might be perfectly ok in some cases (transform functions that product only metadata for example)
+        #sys.exit(1) # don't exit, as this might be perfectly ok in some cases (transform functions that produce only metadata for example)
     else:
         output_section = transform_file.get('output')
         # sample output section:
