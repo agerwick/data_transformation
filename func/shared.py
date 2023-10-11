@@ -144,9 +144,10 @@ def get_filenames(
     if not quiet:
         for index, filename_from_command_line, filename_from_transform_file in filenames_for_error_message:
             if filename_from_command_line:
-                print(f"{file_type.capitalize()} file #{index}: {filename_from_command_line} (from command line)")
+                print(f"{file_type.capitalize()} file #{index} (from command line):")
             elif filename_from_transform_file:
-                print(f"{file_type.capitalize()} file #{index}: {filename_from_transform_file} (from transform file)")
+                print(f"{file_type.capitalize()} file #{index} (from transform file):")
+            print({filename_from_transform_file})
 
     # loop through all files from command line args and add them to the transform file if they don't exist
     if update_transform_file:
