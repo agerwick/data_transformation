@@ -69,12 +69,17 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
 
         metadata_filenames = []
         # is this file is a/b/c/data.csv, look for a/metadata.json
-        metadata_filenames.append(os.path.abspath(os.path.join(os.path.dirname(input_filename), "../../metadata.json")))
+        metadata_filenames.append(os.path.join(os.path.dirname(input_filename), "../../metadata.json"))
         # is this file is a/b/c/data.csv, look for a/b/metadata.json
-        metadata_filenames.append(os.path.abspath(os.path.join(os.path.dirname(input_filename), "../metadata.json")))
+        metadata_filenames.append(os.path.join(os.path.dirname(input_filename), "../metadata.json"))
         # is this file is a/b/c/data.csv, look for a/b/c/metadata.json
-        metadata_filenames.append(os.path.abspath(os.path.join(os.path.dirname(input_filename), "metadata.json")))
-        metadata_filenames.append(input_filename + ".meta.json") # per file metadata
+        metadata_filenames.append(os.path.join(os.path.dirname(input_filename), "metadata.json"))
+        # per file metadata
+        metadata_filenames.append(input_filename + ".meta.json")
+
+        # make sure all metadata filenames are absolute paths
+        for i, filename in enumerate(metadata_filenames):
+            metadata_filenames[i] = os.path.abspath(filename)
 
         for metadata_filename in metadata_filenames:
             input_file_metadata_tmp = {} # reset so that we don't accidentally use metadata from a previous file
@@ -85,7 +90,7 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
                 except:
                     print(f"\nERROR:\nInput file metadata '{metadata_filename}' could not be loaded:\n{sys.exc_info()[1]}\n-- continuing...\n")
             if input_file_metadata_tmp:
-                print(f"Loading metadata from '{metadata_filename}'")
+                print(f"\nLoading metadata for 'input_{index + 1}' from:\n{metadata_filename}")
                 print(f"Metadata: {input_file_metadata_tmp}")
                 # add the data source as a key to the metadata dictionary
                 input_file_metadata[data_source] = deep_update(input_file_metadata.get(data_source) or {}, input_file_metadata_tmp)
@@ -182,6 +187,8 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
                     sheet_data = sheet_data.add_suffix('_'+field_suffix)
                 if rename_field and sheet_data.columns.isin(list(rename_field.keys())).any():
                     print(f"Renaming fields {list(rename_field.keys())} in data entry '{sheet_name}' to {list(rename_field.values())}:")
+                    # if any of the fields to rename to already exists, drop it
+                    sheet_data = sheet_data.drop(columns=list(rename_field.values()), errors='ignore')
                     sheet_data = sheet_data.rename(columns=rename_field)
                 tmp_data[sheet_name] = sheet_data
                 # TODO: this renaming is now done across all sheets, but it should be done per sheet, if we had a way to specify which sheet the renaming applies to.
@@ -215,9 +222,13 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
     for index, input_filename in enumerate(input_filenames, start=1):
         filenames_for_metadata[f"input_{index}"] = input_filename
 
+    input_metadata = {}
+    input_metadata["filenames"] = filenames_for_metadata
+    input_metadata["input"] = input_file_metadata
+
     structured_data = {
         "data": input_data,
-        "metadata": {"input_filenames": filenames_for_metadata}
+        "metadata": input_metadata
     }
 
     # print field names of input data
@@ -294,6 +305,7 @@ def process_input_metadata(input_data, input_file_metadata):
     #   - delete them
     # for now, we can only do exact matches, but we could add support for regex, <, >, etc. later
     if input_file_metadata:
+        print()
         for data_source, data_entries in input_file_metadata.items(): # "input1", {"csv": ...}
             for data_entry, tmp_metadata in data_entries.items(): # "csv", {"find_records": ...}
                 for metadata_entry, metadata_info in tmp_metadata.items(): # "find_records", {"criteria": ..., "action": ...}
@@ -303,7 +315,7 @@ def process_input_metadata(input_data, input_file_metadata):
                         for metadata_info_dict in metadata_info:
                             for field_name, field_value in metadata_info_dict.items():
                                 input_data[data_source][data_entry][field_name] = field_value
-                                print(f"process_input_metadata: added column '{field_name}'='{field_value}' to '{data_source}'/'{data_entry}'")
+                                print(f"{data_source}: process_input_metadata: added column '{field_name}'='{field_value}' to '{data_source}'/'{data_entry}'")
                     elif metadata_entry == "find_records":
                         message_printed = False
                         criteria = metadata_info.get("criteria") # {"record_id": "123"}
@@ -314,16 +326,16 @@ def process_input_metadata(input_data, input_file_metadata):
                             # TODO: Support multiple criteria
                             if matching_records.any():
                                 if not message_printed: # only print this once per data entry
-                                    print(f"process_input_metadata: found records matching {criteria} in data entry '{data_entry}' in data source '{data_source}' -- action: {action_dict}")
+                                    print(f"{data_source}: process_input_metadata: found records matching {criteria} in data entry '{data_entry}' in data source '{data_source}' -- action: {action_dict}")
                                     message_printed = True
                                 for action, action_info in action_dict.items():
                                     if action == "update_records":
                                         # update all records that match the criteria
                                         for field_name, field_value in action_info.items():
                                             input_data[data_source][data_entry].loc[matching_records, field_name] = field_value
-                                            print(f"process_input_metadata: updated field '{field_name}'='{field_value}' for records matching {criteria} in '{data_source}'/'{data_entry}'")
+                                            print(f"{data_source}: process_input_metadata: updated field '{field_name}'='{field_value}' for records matching {criteria} in '{data_source}'/'{data_entry}'")
                                     elif action == "delete_records":
                                         # delete all records that match the criteria
-                                        print(f"process_input_metadata: deleting records matching {criteria} in '{data_source}'/'{data_entry}'")
+                                        print(f"{data_source}: process_input_metadata: deleting records matching {criteria} in '{data_source}'/'{data_entry}'")
                                         input_data[data_source][data_entry] = input_data[data_source][data_entry][~matching_records] # keep non-matching records
     return input_data

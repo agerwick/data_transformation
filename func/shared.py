@@ -618,7 +618,7 @@ def process_metadata(data):
     # if not, print an error message and exit
     if type(data) == dict and "data" in data and "metadata" in data:
         metadata = data["metadata"]
-        input_filenames = metadata.get("input_filenames")
+        input_filenames = metadata.get("filenames")
         # loop through all metadata entries and process them
         for metadata_type in metadata:
             if metadata_type == "add_to_parent_directory":
