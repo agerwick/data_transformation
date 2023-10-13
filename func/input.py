@@ -81,6 +81,7 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
         for i, filename in enumerate(metadata_filenames):
             metadata_filenames[i] = os.path.abspath(filename)
 
+        metadata_loaded = False
         for metadata_filename in metadata_filenames:
             input_file_metadata_tmp = {} # reset so that we don't accidentally use metadata from a previous file
             if os.path.isfile(metadata_filename):
@@ -94,6 +95,9 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
                 print(f"Metadata: {input_file_metadata_tmp}")
                 # add the data source as a key to the metadata dictionary
                 input_file_metadata[data_source] = deep_update(input_file_metadata.get(data_source) or {}, input_file_metadata_tmp)
+                metadata_loaded = True
+        if metadata_loaded:
+            print()
 
         # determine what type of file we are reading
         if input_filename.endswith('.csv'):
@@ -312,10 +316,13 @@ def process_input_metadata(input_data, input_file_metadata):
                     if metadata_entry == "add_column":
                         if type(metadata_info) is dict:
                             metadata_info = [metadata_info] # convert to list if it's a dict
-                        for metadata_info_dict in metadata_info:
-                            for field_name, field_value in metadata_info_dict.items():
-                                input_data[data_source][data_entry][field_name] = field_value
-                                print(f"{data_source}: process_input_metadata: added column '{field_name}'='{field_value}' to '{data_source}'/'{data_entry}'")
+                        if input_data[data_source].get(data_entry) is None:
+                            print(f"Metadata exists, but it is not being applied because the data entry specified in the metadata ['{data_entry}'] does not match available data entries {list(input_data.get(data_source).keys())}.")
+                        else:
+                            for metadata_info_dict in metadata_info:
+                                for field_name, field_value in metadata_info_dict.items():
+                                    input_data[data_source][data_entry][field_name] = field_value
+                                    print(f"{data_source}: process_input_metadata: added column '{field_name}'='{field_value}' to '{data_source}'/'{data_entry}'")
                     elif metadata_entry == "find_records":
                         message_printed = False
                         criteria = metadata_info.get("criteria") # {"record_id": "123"}
