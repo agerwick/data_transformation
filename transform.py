@@ -36,8 +36,9 @@ def main():
                 function = getattr(module, function_name)
                 transform_functions[function_name] = function
         except ImportError:
+            print("\nERROR:")
             print(f"Failed to import functions {function_names} in module {module_name}")
-            print(f"Modules and functions to be imported are defined the import section of {args.transform}")
+            print(f"Modules and functions to be imported are defined the import section of:\n{args.transform}\n")
             print(f"The function names specified here refer to functions defined in {module_name.replace('.','/')}.py.")
             print(f"(the path starts in the same directory as transform.py)")
             sys.exit(1)
