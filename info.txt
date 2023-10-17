@@ -1,0 +1,9 @@
+# We're using pipenv here.
+# Verify which virtual environment is associated with the source folder using:
+pipenv --venv
+# Check if you're in a pipenv environment:
+pipenv --where
+# should return the working directory of the environment
+
+# to install all requirements:
+pip install -r requirements.txt

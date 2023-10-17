@@ -1,0 +1,47 @@
+data in main looks like this:
+{
+    "data": {
+        "input_1": {
+            "csv": <pandas dataframe>
+        },
+        "input_2": {
+            "csv": <pandas dataframe>
+        }
+        "transform_func": {
+            "data": <pandas dataframe>
+        }
+    }
+    "metadata": {
+        "transform_func": {
+            "ambient_temperature": "25"
+        }
+    }
+}
+The whole complete dict:    main_data / input_data (when used as input param)
+                            contains keys "data" and "metadata"
+The "data" dict:            existing_data_sources / new_data_sources / tmp_data_sources
+                            contains data sources - one key for each input / transform func
+                            example: ['input_1', 'input_2', 'extract_single_sheet']
+"input1", "transform_func"  existing_data_entries
+The "metadata" dict:        existing_metadata / new_metadata
+                            may contain the same keys as the data dict to store metadata
+
+transform functions currenly receive main_data, input_section and output_section.
+The latter two refer to the input and output entry for each transform_function in the transform file
+It would be better to replace input_section and output_section with transform_settings,
+which is the entry above, where keys are: ['function', 'input', 'output']
+then load it in the transform function into these variables.
+transform_settings_input
+transform_settings_output
+Anything that has to do these should be prefixed transform_settings_
+
+Similarly, generate_graph and generate_output_file should have the same input:
+generate_graph(
+    main_data,
+    graph_settings
+)
+(graph_settings tells it what data to use)
+or... maybe it should have the entire list of graphs...
+
+Rename input section to import and output section to export.
+Then each of these can have input and output sections.

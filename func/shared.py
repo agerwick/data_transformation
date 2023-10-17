@@ -643,11 +643,11 @@ def process_metadata(data):
                         # just iterate through all data entries
                         for metadata_key, metadata_val in metadata_keys.items():
                             if output_metadata[data_entry].get(metadata_key) == None:
-                                output_metadata[data_entry][metadata_key] = []
+                                output_metadata[data_entry][metadata_key] = {}
                             # "add_column", {'New_Col_Name': "data_for_all_rows"}
                             # make a list with metadata_key as the key and metadata_val as the value
                             for col_name, col_data in metadata_val.items():
-                                output_metadata[data_entry][metadata_key].append({col_name: col_data})
+                                output_metadata[data_entry][metadata_key][col_name] = col_data
                     # write to the json file
                     print(f"Writing metadata to {data_source_filename}")
                     print(output_metadata)
