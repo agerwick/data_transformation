@@ -116,7 +116,8 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
                 for sheet_name in spreadsheet.sheet_names:
                     print(f"  {sheet_name}")
                 print("Loading each sheet into a separate dataframe and combining them as a dictionary with sheet names as keys.")
-                if transform_file_sheet_names[index]:
+                transform_file_sheet_name_list = transform_file_sheet_names[index] if 0 <= index < len(transform_file_sheet_names) else None # prevents errors if none is specified in the transform file
+                if transform_file_sheet_name_list:
                     print(f"Sheets specified in the input section of the transform file: {transform_file_sheet_names[index]}")
                 else:
                     print(f"No sheets specified in input section of the transform file.")
@@ -127,8 +128,9 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
                         print("If you want to use only some of the sheets, add a 'sheets' node to the input section of the transform file and specify sheet names there.")
                 sys.stdout.flush()
                 tmp_data = {}
+                load_all_sheets = not transform_file_sheet_name_list
                 # loop through all the specified sheets, or if none are specified, all sheets in the spreadsheet
-                for sheet_name_tmp in transform_file_sheet_names[index] or spreadsheet.sheet_names:
+                for sheet_name_tmp in transform_file_sheet_name_list or spreadsheet.sheet_names:
                     if type(sheet_name_tmp) is dict:
                         # example: "input": [
                         #   { "sheets": [{"Sheet_{*}_data": "Data"}] }
@@ -189,7 +191,7 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
                 if field_suffix and sheet_data.columns.isin([field_suffix]).any():
                     print(f"Adding suffix '_{field_suffix}' to field names in data entry '{sheet_name}'")
                     sheet_data = sheet_data.add_suffix('_'+field_suffix)
-                if rename_field and sheet_data.columns.isin(list(rename_field.keys())).any():
+                if rename_field and any(key in sheet_data.columns for key in rename_field.keys()):
                     print(f"Renaming fields {list(rename_field.keys())} in data entry '{sheet_name}' to {list(rename_field.values())}:")
                     # if any of the fields to rename to already exists, drop it
                     sheet_data = sheet_data.drop(columns=list(rename_field.values()), errors='ignore')
