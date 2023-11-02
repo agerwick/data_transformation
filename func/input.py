@@ -192,10 +192,11 @@ def get_input_data(input_files_from_args, transform_file_input_section, quiet=Fa
                     print(f"Adding suffix '_{field_suffix}' to field names in data entry '{sheet_name}'")
                     sheet_data = sheet_data.add_suffix('_'+field_suffix)
                 if rename_field and any(key in sheet_data.columns for key in rename_field.keys()):
-                    print(f"Renaming fields {list(rename_field.keys())} in data entry '{sheet_name}' to {list(rename_field.values())}:")
-                    # if any of the fields to rename to already exists, drop it
-                    sheet_data = sheet_data.drop(columns=list(rename_field.values()), errors='ignore')
-                    sheet_data = sheet_data.rename(columns=rename_field)
+                    for from_field, to_field in rename_field.items():
+                        print(f"Renaming column '{from_field}' in data entry '{sheet_name}' to '{to_field}'")
+                        # if any of the fields to rename to already exists, drop it
+                        #sheet_data = sheet_data.drop(columns=list(rename_field.values()), errors='ignore')
+                        sheet_data.rename(columns={from_field: to_field}, inplace=True)
                 tmp_data[sheet_name] = sheet_data
                 # TODO: this renaming is now done across all sheets, but it should be done per sheet, if we had a way to specify which sheet the renaming applies to.
                 # this could for example be by specifying the renaming under the sheet name in the json transform file, like this:
